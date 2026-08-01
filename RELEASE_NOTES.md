@@ -1,38 +1,25 @@
-# PortSentinel 0.3.0 — Session Intelligence
+# PortSentinel 0.4.0 — Explainable Rules
 
-Новая версия превращает живой монитор в локальный центр истории и сравнения сетевой активности.
+Версия 0.4.0 превращает baseline deviations в объяснимый rule engine с локальным enrichment executable.
 
 ## Главное
 
-- новая полноэкранная панель Session Intelligence;
-- Live Session Recorder с сохранением уникальных TCP/UDP записей;
-- локальная SQLite-база с WAL mode;
-- Session History с просмотром сохранённых запусков;
-- экспорт выбранной сессии в JSON или Markdown;
-- Baseline Center с созданием профиля `default`;
-- сравнение текущего состояния с baseline;
-- отдельный экран Storage Status;
-- все сетевые инструменты v0.2.0 доступны в разделе Network Tools;
-- встроенное обновление через GitHub Releases сохранено.
+- новый экран **Explainable Rules**;
+- стабильные baseline fingerprints без зависимости от PID;
+- правило нового listener относительно профиля `default`;
+- правило wildcard listener;
+- правило сетевого executable без Authenticode;
+- правило активности из Temp или Downloads;
+- severity, confidence, evidence и limitation для каждого finding;
+- SHA-256 и publisher в карточке executable;
+- сохранены Session History, exports, Network Tools и updater.
 
-## Хранилище
+## Модель доверия
 
-База данных создаётся локально:
-
-```text
-%LocalAppData%\PortSentinel\portsentinel.db
-```
-
-Экспортированные отчёты сохраняются в:
-
-```text
-%LocalAppData%\PortSentinel\reports
-```
-
-PortSentinel не сохраняет payload, HTTP body или расшифрованное TLS-содержимое.
+PortSentinel показывает наблюдаемые факты и ограничения анализа. Finding не является malware verdict. Отсутствие подписи, wildcard binding или новый listener могут иметь легитимную причину.
 
 ## Скачать
 
-Используйте `PortSentinel-0.3.0-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
+Используйте `PortSentinel-0.4.0-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
 
 Полностью распакуйте архив перед запуском.
