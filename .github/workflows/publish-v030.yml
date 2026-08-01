@@ -1,0 +1,56 @@
+name: Publish PortSentinel v0.3.0
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".release-trigger/v0.3.0"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build and publish v0.3.0
+    runs-on: windows-latest
+    steps:
+      - name: Checkout trusted main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build and package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -ne '0.3.0') { throw "Expected VERSION 0.3.0, found $version" }
+          dotnet restore src/PortSentinel/PortSentinel.csproj
+          dotnet build src/PortSentinel/PortSentinel.csproj -c Release --no-restore
+          dotnet publish src/PortSentinel/PortSentinel.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$version -o dist/package
+          Copy-Item README.md dist/package/README.md
+          Copy-Item LICENSE dist/package/LICENSE
+          Copy-Item CHANGELOG.md dist/package/CHANGELOG.md
+          $zip = "PortSentinel-$version-win-x64.zip"
+          Compress-Archive -Path dist/package/* -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content "$zip.sha256" -Encoding ascii
+          "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_ZIP=$zip" >> $env:GITHUB_ENV
+          "RELEASE_SHA=$zip.sha256" >> $env:GITHUB_ENV
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG $env:RELEASE_ZIP $env:RELEASE_SHA --clobber
+            gh release edit $env:RELEASE_TAG --title "PortSentinel $env:RELEASE_VERSION" --notes-file RELEASE_NOTES.md --latest
+          } else {
+            gh release create $env:RELEASE_TAG $env:RELEASE_ZIP $env:RELEASE_SHA --target main --title "PortSentinel $env:RELEASE_VERSION" --notes-file RELEASE_NOTES.md --latest
+          }
