@@ -1,142 +1,95 @@
 # 🏗️ Архитектура PortSentinel
 
-> Документ описывает целевую архитектуру. Реализация находится на ранней стадии.
+Документ разделяет **реализованное ядро v0.2.0** и будущие подсистемы. PortSentinel уже является самостоятельным `portsentinel.exe` с собственной полноэкранной TUI-панелью.
 
-## Цели архитектуры
-
-PortSentinel должен быть расширяемой Windows-платформой, а не оболочкой над локализованным выводом `netstat` или `Get-NetTCPConnection`. Основные цели: структурированные источники данных, корректная process identity, объяснимые findings, устойчивое хранение и безопасные системные действия.
-
-## Поток данных
-
-```mermaid
-flowchart TD
-    P[Monitoring Profile] --> V[Validation & Privilege Check]
-    V --> TS[Telemetry Sources]
-    TS --> N[Normalization]
-    N --> PC[Process Correlation]
-    PC --> EE[Endpoint Enrichment]
-    EE --> ST[(SQLite Event Storage)]
-    ST --> BR[Baseline & Rule Engine]
-    BR --> UI[CLI / TUI / JSON / HTML]
-
-    TS --> TCP[TCP Table]
-    TS --> UDP[UDP Table]
-    TS --> PROC[Process Lifecycle]
-    TS --> ETW[ETW Backend]
-    TS --> DNS[DNS Events]
-    TS --> FW[Firewall Read Model]
-```
-
-## Проекты solution
-
-| Проект | Ответственность |
-|---|---|
-| `PortSentinel.Domain` | Immutable domain models, enums, events, findings, endpoints и identities |
-| `PortSentinel.Core` | Session Engine, Monitoring Coordinator, Correlation, Baseline, Rules и Privacy |
-| `PortSentinel.Windows` | P/Invoke, IP Helper API, WinTrust, Firewall API, ETW, privileges и SafeHandle |
-| `PortSentinel.Sources` | TCP/UDP/process/DNS/interface/firewall/event-log sources |
-| `PortSentinel.Enrichment` | Signatures, hashing, DNS, endpoint scope и firewall correlation |
-| `PortSentinel.Rules` | Side-effect-free explainable detection rules |
-| `PortSentinel.Storage` | SQLite, migrations, repositories, batching и paging |
-| `PortSentinel.Reporting` | Console, HTML, JSON, Markdown и charts |
-| `PortSentinel.Cli` | System.CommandLine, Spectre.Console, TUI, filters и exit codes |
-
-## Source contract
-
-Каждый источник должен иметь собственный lifecycle, capability flags и диагностический результат. Ошибка одного backend не должна останавливать всю сессию.
-
-```csharp
-public interface INetworkTelemetrySource
-{
-    string Id { get; }
-    string DisplayName { get; }
-    NetworkSourceCapabilities Capabilities { get; }
-
-    Task<NetworkSourceStartResult> StartAsync(
-        NetworkMonitoringContext context,
-        INetworkEventSink sink,
-        CancellationToken cancellationToken);
-
-    Task<NetworkSourceStopResult> StopAsync(
-        CancellationToken cancellationToken);
-}
-```
-
-Источник сообщает backend, event count, dropped events, polling interval, warnings, errors, administrator requirement и limitations.
-
-## Process identity
-
-PID может переиспользоваться Windows, поэтому долговременная identity должна учитывать время запуска:
-
-```text
-process://<pid>/<start-time>
-```
-
-В metadata планируется хранить PID, parent PID, process name, path, start time, architecture, session ID, integrity level, publisher, signature, version и service/package association. Command line собирается только по явной настройке.
-
-## Connection identity
-
-TCP connection внутри сессии:
-
-```text
-tcp://<process-identity>/<local-address>:<local-port>/<remote-address>:<remote-port>/<first-seen>
-```
-
-Listener:
-
-```text
-listener://<process-identity>/<protocol>/<local-address>:<local-port>/<first-seen>
-```
-
-Для UDP нельзя создавать вымышленный remote endpoint.
-
-## Первый vertical slice
-
-Первая рабочая реализация должна включать только необходимый end-to-end путь:
+## Архитектура v0.2.0
 
 ```mermaid
 flowchart LR
-    A[GetExtendedTcpTable] --> B[Snapshot Normalization]
-    B --> C[Diff: Opened / Changed / Closed]
-    C --> D[PID → Process Mapping]
-    D --> E[Listener Detection]
-    E --> F[(SQLite Session)]
-    F --> G[Console Output]
+    UI[Full-screen TUI] --> APP[PortSentinelApp]
+    APP --> SNAP[NetworkSnapshotService]
+    SNAP --> API[Windows IP Helper API]
+    API --> TCP[GetExtendedTcpTable]
+    API --> UDP[GetExtendedUdpTable]
+    SNAP --> META[ProcessMetadataService]
+    META --> PROC[Windows Process API]
+    APP --> SCAN[QuickScanService]
+    APP --> UPDATE[GitHubUpdateService]
+    UPDATE --> RELEASES[GitHub Releases]
 ```
 
-Критерии:
+## Ответственность компонентов
 
-1. TCP IPv4/IPv6 таблицы читаются через структурированный Windows API.
-2. Порядок строк не создаёт ложные события.
-3. PID корректно связывается с process identity.
-4. Listeners определяются и сохраняются.
-5. Сессия закрывается без повреждения SQLite после `Ctrl+C`.
-6. Частичные данные и ограничения отображаются пользователю.
+| Компонент | Ответственность |
+|---|---|
+| `Program.cs` | Windows check, параметры запуска, UTF-8 и создание приложения |
+| `PortSentinelApp` | Навигация, экраны, live loop и управление клавиатурой |
+| `Terminal` | Полноэкранный рендеринг, цвета, рамки, spinner и progress-анимации |
+| `AsciiLogo` | Полный и компактный символьный логотип |
+| `NetworkSnapshotService` | TCP/UDP IPv4/IPv6 таблицы через `iphlpapi.dll` |
+| `ProcessMetadataService` | PID, имя процесса, executable path, компания и start time |
+| `QuickScanService` | Explainable эвристики без malware verdict |
+| `GitHubUpdateService` | Release API, ZIP, SHA-256, безопасная распаковка и перезапуск |
 
-## Storage
+## Поток сетевых данных
 
-Основные таблицы: `Sessions`, `SessionSources`, `Processes`, `NetworkEvents`, `Connections`, `Listeners`, `Findings`, `Baselines`, `FirewallTransactions`, `ManagedFirewallRules`, `Reports` и `MigrationHistory`.
+1. `GetExtendedTcpTable` и `GetExtendedUdpTable` возвращают структурированные Windows-таблицы.
+2. Native rows нормализуются в `NetworkEntry`.
+3. PID обогащается сведениями о процессе.
+4. UI разделяет listeners и active connections.
+5. Live Monitor сравнивает последовательные снимки и выделяет новые записи.
+6. Quick Scan оценивает только наблюдаемые признаки.
 
-Обязательны transactions, prepared statements, batch inserts, migrations, paging и индексы по session/timestamp, process identity, PID, protocol/ports, remote address и severity.
+PortSentinel не парсит локализованный вывод `netstat` и не запускает PowerShell для основного мониторинга.
 
-## Rule Engine
+## Native API
 
-Rules должны быть versioned, explainable, configurable, testable и side-effect free. Finding содержит severity, confidence, причины, supporting event IDs, рекомендации и ограничения.
+v0.2.0 использует:
 
-Первые правила:
+- `GetExtendedTcpTable` для TCP IPv4/IPv6;
+- `GetExtendedUdpTable` для UDP IPv4/IPv6;
+- `System.Diagnostics.Process` для process metadata;
+- `kernel32.dll` для virtual terminal mode.
 
-- `NewListenerRule`;
-- `WildcardListenerRule`;
-- `UnsignedNetworkProcessRule`;
-- `TempDirectoryNetworkProcessRule`.
+Native buffer всегда освобождается через `Marshal.FreeHGlobal`. Ошибка чтения превращается в понятный экран диагностики, а не в повреждённую таблицу.
 
-## Надёжность
+## TUI
 
-- bounded channels и backpressure;
-- приоритет lifecycle/listener events;
-- ограниченный hashing parallelism;
-- rate-limited DNS;
-- dropped-events counter;
-- graceful fallback при недоступном ETW;
-- crash recovery для незавершённых сессий;
-- warnings собственного кода считаются errors.
+Интерфейс не зависит от внешней UI-библиотеки. Это позволяет выпускать один self-contained EXE и полностью контролировать:
+
+- перерисовку экрана;
+- навигацию стрелками;
+- цветовые состояния;
+- адаптацию таблиц к ширине терминала;
+- заставку, spinner и progress bar;
+- автоматическое отключение анимаций при redirect.
+
+Подробнее: [`INTERFACE.md`](INTERFACE.md).
+
+## Обновления
+
+Updater доверяет только Release репозитория `Onmaynec/PortSentinel`. Перед установкой он:
+
+1. получает `releases/latest`;
+2. ищет ожидаемый `win-x64.zip`;
+3. скачивает `.sha256`;
+4. сравнивает SHA-256;
+5. проверяет пути ZIP при распаковке;
+6. просит явное подтверждение;
+7. заменяет файлы после завершения текущего процесса.
+
+Подробнее: [`UPDATES.md`](UPDATES.md).
+
+## Следующие архитектурные слои
+
+В следующих версиях будут добавлены отдельные проекты или модули для:
+
+- SQLite session storage;
+- baseline engine;
+- explainable rule engine;
+- digital signature и hashing enrichment;
+- ETW и DNS correlation;
+- HTML/JSON/Markdown reporting;
+- managed Windows Firewall actions с plan, dry-run и rollback.
+
+Эти подсистемы пока являются roadmap и не выдаются документацией за готовую функциональность.
