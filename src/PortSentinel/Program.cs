@@ -7,7 +7,7 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.2.0";
+    public const string Version = "0.3.0";
 
     private static async Task<int> Main(string[] args)
     {
@@ -39,7 +39,6 @@ internal static class Program
             UpdateCheckResult result = await terminal.RunWithSpinnerAsync(
                 "Проверка GitHub Releases",
                 updater.CheckAsync(CancellationToken.None));
-
             Console.WriteLine(result.Message);
             return result.Status == UpdateStatus.Failed ? 1 : 0;
         }
@@ -53,11 +52,17 @@ internal static class Program
 
         try
         {
-            var app = new PortSentinelApp(
+            var network = new NetworkSnapshotService();
+            var legacyPanel = new PortSentinelApp(
                 terminal,
-                new NetworkSnapshotService(),
+                network,
                 new ProcessMetadataService(),
                 updater);
+            var app = new PortSentinelV3App(
+                terminal,
+                network,
+                new SessionStore(),
+                legacyPanel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -82,6 +87,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
+        Console.WriteLine("v0.3.0: SQLite Session History, Baseline Center и экспорт отчётов.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");
