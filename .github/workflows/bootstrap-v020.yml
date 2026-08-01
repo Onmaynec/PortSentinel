@@ -1,0 +1,126 @@
+name: Bootstrap PortSentinel 0.2.0
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".bootstrap/**"
+      - ".github/workflows/bootstrap-v020.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    name: Expand, build and release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Expand source payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = Get-ChildItem .bootstrap/payload.* | Sort-Object Name
+          if ($parts.Count -ne 6) {
+            throw "Expected 6 payload parts, found $($parts.Count)."
+          }
+
+          $base64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $archive = Join-Path $env:RUNNER_TEMP 'portsentinel-source.zip'
+          $expanded = Join-Path $env:RUNNER_TEMP 'portsentinel-source'
+          [IO.File]::WriteAllBytes($archive, [Convert]::FromBase64String($base64))
+          Expand-Archive $archive $expanded -Force
+
+          Get-ChildItem -Force | Where-Object {
+            $_.Name -notin @('.git', '.bootstrap', '.gitignore', '.github')
+          } | Remove-Item -Recurse -Force
+
+          if (Test-Path .github) {
+            Remove-Item .github -Recurse -Force
+          }
+
+          Get-ChildItem $expanded -Force | ForEach-Object {
+            Copy-Item $_.FullName -Destination . -Recurse -Force
+          }
+
+          Remove-Item .bootstrap -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/workflows/bootstrap-v020.yml -Force -ErrorAction SilentlyContinue
+
+      - name: Commit PortSentinel 0.2.0 sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: release PortSentinel 0.2.0 control center"
+          git push origin HEAD:main
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore src/PortSentinel/PortSentinel.csproj
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build src/PortSentinel/PortSentinel.csproj -c Release --no-restore
+
+      - name: Publish portable package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content VERSION -Raw).Trim()
+          $package = Join-Path $PWD 'dist/package'
+          New-Item -ItemType Directory -Path $package -Force | Out-Null
+
+          dotnet publish src/PortSentinel/PortSentinel.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=$version `
+            -o $package
+
+          Copy-Item README.md $package
+          Copy-Item LICENSE $package
+          Copy-Item CHANGELOG.md $package
+
+          $zip = "PortSentinel-$version-win-x64.zip"
+          Compress-Archive -Path "$package/*" -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content "$zip.sha256" -Encoding ascii
+
+          "RELEASE_ZIP=$zip" >> $env:GITHUB_ENV
+          "RELEASE_SHA=$zip.sha256" >> $env:GITHUB_ENV
+          "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG $env:RELEASE_ZIP $env:RELEASE_SHA --clobber
+          }
+          else {
+            gh release create $env:RELEASE_TAG `
+              $env:RELEASE_ZIP `
+              $env:RELEASE_SHA `
+              --target main `
+              --title "PortSentinel $env:RELEASE_VERSION" `
+              --notes-file RELEASE_NOTES.md `
+              --latest
+          }
