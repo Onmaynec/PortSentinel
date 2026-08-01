@@ -2,6 +2,30 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.3.0] — 2026-08-01
+
+### Добавлено
+
+- новая верхнеуровневая TUI-панель Session Intelligence;
+- Live Session Recorder с автоматическим сохранением уникальных сетевых записей;
+- локальная SQLite-база `%LocalAppData%\PortSentinel\portsentinel.db`;
+- WAL journal mode и параметризованные SQL-запросы;
+- экран Session History с навигацией стрелками;
+- просмотр сохранённых сетевых сессий;
+- экспорт сессий в JSON schema v1 и GitHub Markdown;
+- Baseline Center с профилем `default`;
+- сравнение текущего состояния с baseline;
+- отображение новых и исчезнувших сетевых записей;
+- Storage Status с путями базы и отчётов;
+- Microsoft.Data.Sqlite 8;
+- все инструменты v0.2.0 сохранены в разделе Network Tools.
+
+### Безопасность и приватность
+
+- payload, HTTP body и TLS content не сохраняются;
+- baseline deviation не считается доказательством угрозы;
+- SQLite работает локально без внешнего сервера.
+
 ## [0.2.0] — 2026-08-01
 
 ### Добавлено
@@ -21,12 +45,6 @@
 - GitHub Actions Build и Release;
 - русский README по умолчанию;
 - MIT License.
-
-### Ограничения
-
-- SQLite history, baseline, ETW, DNS enrichment и Firewall management перенесены в roadmap;
-- цифровая подпись executable пока не проверяется;
-- metadata protected-процессов может быть ограничена.
 
 ## [0.1.0] — 2026-08-01
 
