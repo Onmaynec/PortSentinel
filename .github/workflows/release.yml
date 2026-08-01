@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "VERSION must use semantic versioning, for example 0.2.0"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish portable single-file EXE
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          dotnet restore src/PortSentinel/PortSentinel.csproj
+          dotnet publish src/PortSentinel/PortSentinel.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=$version `
+            --output dist/package
+
+          Copy-Item README.md dist/package/README.md
+          Copy-Item LICENSE dist/package/LICENSE
+          Copy-Item CHANGELOG.md dist/package/CHANGELOG.md
+
+      - name: Create ZIP and SHA-256
+        id: package
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $zip = "PortSentinel-$version-win-x64.zip"
+          Compress-Archive -Path dist/package/* -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content "$zip.sha256" -Encoding ascii
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sha=$zip.sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          $zip = '${{ steps.package.outputs.zip }}'
+          $sha = '${{ steps.package.outputs.sha }}'
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $zip $sha --clobber
+          }
+          else {
+            gh release create $tag $zip $sha `
+              --target '${{ github.sha }}' `
+              --title "PortSentinel ${{ steps.version.outputs.version }}" `
+              --notes-file RELEASE_NOTES.md `
+              --latest
+          }
