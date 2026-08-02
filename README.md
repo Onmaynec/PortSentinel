@@ -4,42 +4,43 @@
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](docs/COMPATIBILITY.md)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](src/PortSentinel/PortSentinel.csproj)
-[![Version](https://img.shields.io/badge/version-0.5.7-00d4ff)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.5.8-00d4ff)](VERSION)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Полноэкранная Windows TUI для ETW telemetry, SQLite archive, Installer Watch и explainable network diagnostics.**
+**Полноэкранная Windows TUI для ETW telemetry, безопасного session control, SQLite archive и explainable network diagnostics.**
 
 [English](docs/README_EN.md) · [Интерфейс](docs/INTERFACE.md) · [Архитектура](docs/ARCHITECTURE.md) · [Обновления](docs/UPDATES.md) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
 > [!IMPORTANT]
-> PortSentinel — самостоятельный `portsentinel.exe`. Он не запускает установщики, не перехватывает packet payload и не является malware scanner.
+> PortSentinel — самостоятельный `portsentinel.exe`. Он не перехватывает packet payload, не расшифровывает TLS и не является malware scanner.
 
-## Что нового в 0.5.7 📦
+## Что нового в 0.5.8 🛡️
 
-- новая панель **Installer Watch**;
-- Standard Watch: baseline 8 секунд + watch 30 секунд;
-- Deep Watch: baseline 10 секунд + watch 60 секунд;
-- ручная точка запуска установщика между captures;
-- baseline и watch автоматически сохраняются в SQLite;
-- optional process hint приоритизирует похожие process names;
-- PID-независимый before/after diff новых network fingerprints;
-- process candidates, endpoints, TCP/UDP counts и failure signals;
-- анализ последней пары архивных captures;
-- JSON и Markdown Installer Watch reports;
-- Timeline Explorer v0.5.6 полностью сохранён во вложенной панели.
+- новая панель **ETW Session Guard**;
+- preflight inventory активных ETW session names;
+- разделение собственных `PortSentinel-*` и foreign sessions;
+- 15-секундный Guarded Capture с сохранением в SQLite;
+- diagnostics попыток запуска, backend и snapshot fallback;
+- best-effort classification access denied, name collision, resource limit и unavailable session;
+- один bounded retry только при вероятном name collision;
+- JSON/Markdown exports inventory и capture diagnostics;
+- dry-run cleanup orphan sessions с обязательным подтверждением `Y`;
+- cleanup разрешён только для session names с префиксом `PortSentinel-`;
+- Installer Watch v0.5.7 полностью сохранён во вложенной панели.
 
 ## Основные возможности ✨
 
 | Модуль | Что делает |
 |---|---|
+| 🛡️ ETW Session Guard | Проверяет logger sessions и защищает foreign sessions от изменений |
 | 📦 Installer Watch | Сравнивает baseline и watch во время ручной установки программы |
 | 📜 Timeline Explorer | Постранично открывает крупные captures через SQLite |
 | 🌐 Network Coverage | Показывает TCP4/TCP6/UDP4/UDP6 protocol families |
 | ❤️‍🩹 Connection Health | Анализирует fail/reconnect/retransmit patterns |
 | ⚡ ETW Network Capture | Получает read-only kernel network metadata |
-| 🛟 Snapshot Fallback | Продолжает работу через Windows IP Helper API без elevation |
+| 🛟 Snapshot Fallback | Продолжает работу через Windows IP Helper API |
 | 🗄️ Telemetry Archive | Хранит captures и events в локальной SQLite-базе |
 | 🔎 Archive Search | Ищет события по process, IP, note, kind и backend |
 | ⇄ Selective Comparison | Сравнивает выбранные capture-сессии без PID |
@@ -47,61 +48,53 @@
 | 🎯 Baseline & Rules | Показывает deviations, evidence и limitations |
 | 🔄 Update Center | Проверяет GitHub Releases и SHA-256 |
 
+## ETW Session Guard
+
+### Guarded Capture
+
+1. Session Guard получает список активных ETW session names.
+2. PortSentinel выполняет bounded 15-секундный capture.
+3. При вероятном name collision допускается один короткий retry.
+4. При отказе используется snapshot fallback через Windows IP Helper API.
+5. Capture сохраняется в SQLite, а diagnostics можно экспортировать в JSON или Markdown.
+
+Foreign sessions только отображаются. PortSentinel не останавливает, не перезапускает и не изменяет их.
+
+### Session Inventory
+
+Inventory показывает:
+
+- количество активных sessions;
+- session names;
+- собственные sessions с префиксом `PortSentinel-`;
+- foreign sessions;
+- ошибку inventory, если Windows не разрешила query.
+
+Inventory не показывает packet data и не изменяет logger configuration.
+
+### Owned Cleanup
+
+Cleanup предназначен для orphan sessions после аварийного завершения приложения.
+
+- сначала показывается dry-run список;
+- foreign sessions исключаются по ownership filter;
+- выполнение начинается только после нажатия `Y`;
+- перед cleanup необходимо закрыть другие экземпляры PortSentinel.
+
+Другой активный экземпляр PortSentinel также использует префикс `PortSentinel-`, поэтому его capture может быть остановлен подтверждённым cleanup.
+
 ## Installer Watch
 
-### Standard Watch
+Installer Watch остаётся доступным во вложенной панели:
 
-1. Закройте лишние приложения.
-2. Укажите optional process hint, например `setup`, `installer` или имя приложения.
-3. Запишите 8-секундный baseline.
-4. Запустите установщик вручную.
-5. Вернитесь в PortSentinel и начните 30-секундный watch capture.
-6. Просмотрите process candidates, added metadata и limitations.
+- Standard Watch: baseline 8 секунд + watch 30 секунд;
+- Deep Watch: baseline 10 секунд + watch 60 секунд;
+- ручная точка запуска установщика;
+- PID-независимый before/after diff;
+- process candidates, endpoints, TCP/UDP counts и failure signals;
+- JSON/Markdown reports.
 
-### Deep Watch
-
-Deep Watch использует baseline 10 секунд и watch 60 секунд. Он полезен для установщиков, которые загружают несколько компонентов или запускают package manager и service host.
-
-PortSentinel не запускает installer EXE и не изменяет систему.
-
-## Что входит в diff
-
-Installer Watch сравнивает нормализованные network fingerprints:
-
-- event kind;
-- protocol family;
-- process name;
-- remote address и port;
-- local binding для listener/accept events.
-
-PID исключён. Для исходящих событий также исключается ephemeral local port, чтобы новый временный порт не создавал ложный уникальный fingerprint.
-
-## Модель доверия
-
-Process hint используется только для сортировки. Он не доказывает, что установщик владеет endpoint.
-
-Новые события могут принадлежать:
-
-- background applications;
-- Windows services;
-- scheduled tasks;
-- child processes установщика;
-- service hosts;
-- package managers;
-- браузеру, открытому установщиком.
-
-Baseline и watch являются отдельными bounded captures. Промежуток между ними не записывается. При SnapshotFallback короткоживущие события и ordering могут отсутствовать.
-
-## Timeline Explorer
-
-Timeline Explorer остаётся доступным во вложенной панели и поддерживает:
-
-- server-side `COUNT(*)`, `LIMIT` и `OFFSET`;
-- PageUp/PageDown и Home/End;
-- kind/protocol filters;
-- parameterized text search;
-- переход к sequence number;
-- JSON/Markdown export текущей SQL-page.
+PortSentinel не запускает installer EXE самостоятельно и не доказывает attribution endpoint конкретному приложению.
 
 ## ETW coverage
 
@@ -112,7 +105,7 @@ Kernel backend обрабатывает:
 - UDP4: send и receive;
 - UDP6: send и receive.
 
-Kernel ETW control обычно требует запуска от администратора. При недостаточных правах или ошибке logger используется snapshot fallback.
+Kernel ETW control обычно требует запуска от администратора. При недостаточных правах, logger/resource conflict или другой ошибке используется snapshot fallback.
 
 ## Privacy boundary
 
@@ -120,21 +113,20 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 
 ## Быстрый старт ⚡
 
-1. Скачайте `PortSentinel-0.5.7-win-x64.zip` из Releases.
+1. Скачайте `PortSentinel-0.5.8-win-x64.zip` из Releases.
 2. Сверьте архив с `.sha256`.
 3. Полностью распакуйте ZIP в отдельную папку.
-4. Запустите `portsentinel.exe`.
+4. Для kernel ETW запустите `portsentinel.exe` от администратора.
 
 ## Управление 🎮
 
 | Клавиша | Действие |
 |---|---|
-| `↑` / `↓` | Выбор меню, процесса или события |
-| `Enter` | Начать этап watch или открыть details |
-| `E` | Показать added events |
-| `L` | Показать limitations |
+| `↑` / `↓` | Выбор пункта меню |
+| `Enter` | Открыть действие или начать capture |
+| `R` | Обновить session inventory |
+| `Y` | Подтвердить owned-session cleanup |
 | `J` / `M` | Экспорт JSON / Markdown |
-| `PageUp` / `PageDown` | Переключить страницы Timeline Explorer |
 | `Esc` / `Q` | Назад или выход |
 
 ## Локальное хранилище
@@ -164,10 +156,10 @@ dotnet run --project src/PortSentinel/PortSentinel.csproj
 
 ## Roadmap 🗺️
 
-- `0.5.x` — automated tests и kernel logger conflict handling;
+- `0.5.x` — automated tests и documented failure-code mapping;
 - `0.6.0` — read-only Firewall correlation и безопасные managed rules;
 - `1.0.0` — стабильные schemas, подписанные релизы и backward compatibility.
 
 ---
 
-**PortSentinel 0.5.7** · Windows 10/11 x64 · .NET 8 · MIT
+**PortSentinel 0.5.8** · Windows 10/11 x64 · .NET 8 · MIT

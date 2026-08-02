@@ -7,13 +7,13 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.5.7";
+    public const string Version = "0.5.8";
 
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        Console.Title = $"PortSentinel {Version} — Installer Watch";
+        Console.Title = $"PortSentinel {Version} — ETW Session Guard";
 
         if (!OperatingSystem.IsWindows())
         {
@@ -111,12 +111,19 @@ internal static class Program
                 terminal,
                 new TimelineExplorerService(store.DatabasePath, store.ReportsDirectory),
                 v55Panel);
-            var app = new PortSentinelV57App(
+            var v57Panel = new PortSentinelV57App(
                 terminal,
                 etw,
                 archive,
                 new InstallerWatchService(store.ReportsDirectory),
                 v56Panel);
+            var sessionGuard = new EtwSessionGuardService(store.ReportsDirectory);
+            var app = new PortSentinelV58App(
+                terminal,
+                new GuardedEtwCaptureService(etw, sessionGuard),
+                sessionGuard,
+                archive,
+                v57Panel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -141,7 +148,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
-        Console.WriteLine("v0.5.7: guided installer baseline/watch captures и explainable before/after reports.");
+        Console.WriteLine("v0.5.8: ETW session preflight, guarded capture diagnostics и owned-only cleanup.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");

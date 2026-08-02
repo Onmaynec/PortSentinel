@@ -1,119 +1,119 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.5.7 добавляет guided Installer Watch поверх существующего read-only ETW pipeline, SQLite archive и Timeline Explorer. Новый слой не запускает installer EXE и не изменяет систему.
+PortSentinel 0.5.8 добавляет ETW Session Guard поверх существующего read-only capture pipeline. Новый слой выполняет preflight inventory, сохраняет диагностику backend/fallback и предоставляет отдельный owned-only cleanup для orphan sessions.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV57App / TUI] --> ETW[EtwTelemetryService]
+    UI[PortSentinelV58App / TUI] --> GUARDED[GuardedEtwCaptureService]
+    UI --> SESSION[EtwSessionGuardService]
+    GUARDED --> INVENTORY[Active Session Inventory]
+    GUARDED --> ETW[EtwTelemetryService]
+    ETW --> KERNEL[TraceEvent Kernel NetworkTCPIP]
+    ETW --> FALLBACK[Windows IP Helper Snapshot]
+    GUARDED --> DIAG[Attempt / Fallback Diagnostics]
     UI --> ARCHIVE[TelemetryArchiveService]
-    ETW --> BASELINE[Baseline Capture]
-    ETW --> WATCH[Watch Capture]
-    BASELINE --> ARCHIVE
-    WATCH --> ARCHIVE
     ARCHIVE --> DB[(SQLite telemetry_captures / telemetry_events)]
-    UI --> ANALYZER[InstallerWatchService]
-    ANALYZER --> DIFF[PID-independent Fingerprint Diff]
-    ANALYZER --> PROCESS[Process Candidates]
-    ANALYZER --> REPORTS[JSON / Markdown]
-    UI --> V56[PortSentinelV56App]
-    V56 --> TIMELINE[TimelineExplorerService]
+    SESSION --> REPORTS[JSON / Markdown]
+    SESSION --> OWNED[PortSentinel-* Cleanup]
+    UI --> V57[PortSentinelV57App / Installer Watch]
 ```
 
-## Guided workflow
+## Session inventory
 
-`PortSentinelV57App` реализует два профиля:
+`EtwSessionGuardService.Inspect` вызывает `TraceEventSession.GetActiveSessionNames()` и получает только имена активных ETW logger sessions.
 
-- Standard Watch: baseline 8 секунд и watch 30 секунд;
-- Deep Watch: baseline 10 секунд и watch 60 секунд.
+Результат содержит:
 
-Порядок выполнения:
+- timestamp inventory;
+- success/error status;
+- полный список session names;
+- subset имён с префиксом `PortSentinel-`;
+- owned/foreign counters.
 
-1. пользователь записывает baseline без установщика;
-2. baseline немедленно сохраняется через `TelemetryArchiveService`;
-3. PortSentinel останавливается в ручной checkpoint;
-4. пользователь самостоятельно запускает installer EXE;
-5. после Enter начинается watch capture;
-6. watch capture сохраняется в ту же SQLite schema;
-7. `InstallerWatchService` строит before/after report.
+Inventory не attach-ится к foreign sessions, не читает provider payload и не изменяет logger configuration.
 
-PortSentinel не получает путь к установщику, не вызывает `Process.Start` и не выполняет package-manager commands.
+## Guarded capture
 
-## Fingerprint comparison
+`GuardedEtwCaptureService` выполняет следующий workflow:
 
-Analyzer строит baseline set и выбирает watch events, fingerprint которых ранее не наблюдался.
+1. получает inventory до capture;
+2. вызывает существующий bounded `EtwTelemetryService.CaptureAsync`;
+3. фиксирует backend, duration, failure text и session counts;
+4. классифицирует fallback best-effort способом;
+5. только при вероятном name collision выполняет один retry после короткой задержки;
+6. возвращает `EtwGuardedCaptureResult`;
+7. UI сохраняет обычный `EtwCaptureResult` в существующий SQLite archive.
 
-Для outbound metadata fingerprint включает:
+Классификация включает:
 
-- event kind;
-- protocol family;
-- normalized process name;
-- remote address;
-- remote port.
+- `NotElevated`;
+- `AccessDenied`;
+- `NameCollision`;
+- `ResourceLimit`;
+- `SessionUnavailable`;
+- `Unknown`.
 
-PID и outbound local ephemeral port исключаются, чтобы process restart или новый временный port не создавали ожидаемый шум.
+Она является диагностической. Неизвестные сообщения не получают speculative interpretation.
 
-Для `LISTENER` и `ACCEPT` дополнительно сохраняются local address и local port, потому что binding является значимой частью наблюдения.
+## Foreign-session protection
 
-Added events дедуплицируются по fingerprint и сортируются так, чтобы process-hint matches отображались первыми.
+Guarded Capture не вызывает stop/restart для session names из inventory. Сторонние ETW sessions только отображаются в отчёте.
 
-## Process candidates
+Foreign-session policy:
 
-Новые events группируются по normalized process name. Для каждого кандидата рассчитываются:
+- no automatic attach;
+- no automatic stop;
+- no restart;
+- no provider changes;
+- no logger-limit changes.
 
-- added event count;
-- unique remote endpoints;
-- TCP event count;
-- UDP event count;
-- число `FAIL`, `RETRANSMIT` и `RECONNECT` signals;
-- совпадение с optional process hint.
+## Owned cleanup
 
-Process hint используется только для prioritization. Он не изменяет fingerprints, не скрывает остальные processes и не создаёт attribution verdict.
+`CleanupOwnedAsync` сначала фильтрует input через `IsOwnedSession`. Только имена, начинающиеся с `PortSentinel-`, могут пройти к `TraceEventSession.GetActiveSession` и `Stop(noThrow: true)`.
 
-## Archive compatibility
+TUI дополнительно требует:
 
-Версия 0.5.7 не добавляет таблицы или columns. Baseline и watch являются обычными `telemetry_captures`, а events записываются в существующую `telemetry_events`.
+1. dry-run preview;
+2. предупреждение о других экземплярах PortSentinel;
+3. подтверждение клавишей `Y`.
 
-Это позволяет:
-
-- открыть обе captures в Timeline Explorer;
-- повторно построить report через Latest Pair;
-- применять archive search и retention;
-- сохранить backward compatibility с предыдущими records.
+Если session исчезла между preview и cleanup, операция считается завершённой без ошибки. Foreign names отбрасываются до attach.
 
 ## Reports
 
-`InstallerWatchService.ExportAsync` создаёт:
+Session Guard создаёт два типа отчётов:
 
-- JSON schema v1 с capture IDs, backends, process candidates, added events и limitations;
-- Markdown report с process table и added network metadata.
+- inventory JSON schema v1 / Markdown;
+- guarded-capture diagnostics JSON schema v1 / Markdown.
 
-Reports сохраняются в существующий `%LocalAppData%\PortSentinel\reports`.
+Diagnostics содержат capture summary, попытки, failure kind, optional native code, inventory counters и foreign-session policy. Network events отдельно сохраняются в обычном telemetry archive.
 
-## Trust boundaries
+## Archive compatibility
 
-Installer Watch всегда сообщает следующие ограничения:
+Версия 0.5.8 не меняет SQLite schema. Guarded Capture сохраняется как обычная запись `telemetry_captures` и связанные `telemetry_events`.
 
-- baseline и watch являются отдельными bounded captures;
-- промежуток между ними не записывается;
-- background applications, services и scheduled tasks могут создать новые events;
-- installer может делегировать network activity child process, service host, package manager или browser;
-- process-name correlation не доказывает ownership;
-- SnapshotFallback может пропустить short-lived lifecycle events и ordering.
+Поэтому результат доступен в:
+
+- Timeline Explorer;
+- Network Coverage;
+- Connection Health;
+- archive search/comparison;
+- retention operations.
 
 ## Existing layers
 
-Вложенный `PortSentinelV56App` сохраняет:
+Вложенный `PortSentinelV57App` сохраняет:
 
-- server-side Timeline Explorer pagination;
-- kind/protocol filters и sequence jump;
-- Network Coverage TCP4/TCP6/UDP4/UDP6;
+- Installer Watch baseline/watch workflow;
+- Timeline Explorer pagination;
+- TCP4/TCP6/UDP4/UDP6 coverage;
 - Connection Health;
-- archive search, comparison и retention;
-- sessions, baseline rules и legacy network tools.
+- archive operations;
+- sessions, explainable rules и legacy network tools.
 
 ## Privacy boundary
 
-PortSentinel работает только с network metadata. Он не собирает и не сохраняет:
+PortSentinel работает только с session names и network metadata. Он не собирает и не сохраняет:
 
 - packet payload;
 - HTTP body;
@@ -124,6 +124,6 @@ PortSentinel работает только с network metadata. Он не соб
 ## Зависимости
 
 - `.NET 8 / net8.0-windows`;
-- `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser;
-- `Microsoft.Data.Sqlite` для local archive и timeline queries;
+- `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser и session inventory;
+- `Microsoft.Data.Sqlite` для local archive;
 - Windows IP Helper API и Toolhelp32 через P/Invoke.
