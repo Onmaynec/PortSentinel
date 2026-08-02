@@ -1,28 +1,31 @@
-# PortSentinel 0.5.1 — ETW Telemetry
+# PortSentinel 0.5.2 — Telemetry Archive
 
-Версия 0.5.1 добавляет дополнительный read-only kernel ETW backend для событий жизненного цикла TCP-соединений и сохраняет безопасный snapshot fallback.
+Версия 0.5.2 превращает одноразовые ETW/fallback captures в локальный архив с историей, просмотром событий и сравнением сетевого lifecycle между запусками.
 
 ## Главное
 
-- новая панель **ETW Telemetry**;
-- kernel TCP IPv4 events: connect, accept, disconnect и retransmit;
-- фиксированное 12-секундное окно capture;
-- список событий и подробная карточка process/endpoints;
-- capability probe для elevated access;
-- автоматический fallback на Windows IP Helper API snapshot;
-- JSON schema v1 и Markdown export;
-- полный Extended Telemetry Control Center v0.5.0 сохранён внутри новой панели.
+- новая панель **Telemetry Archive**;
+- автоматическое сохранение каждого ETW или snapshot fallback capture в SQLite;
+- история до 100 последних capture-сессий;
+- просмотр сохранённых event metadata и backend status;
+- JSON schema v1 и Markdown export архивных capture;
+- сравнение двух последних capture по lifecycle fingerprint без PID;
+- список новых и исчезнувших lifecycle fingerprints;
+- JSON/Markdown export telemetry diff;
+- полный ETW Control Center v0.5.1 сохранён внутри новой панели.
 
-## Доступ и fallback
+## Хранилище и совместимость
 
-Управление kernel ETW session обычно требует запуска от администратора. Если права отсутствуют, системная ETW session занята или backend возвращает ошибку, PortSentinel не завершается аварийно и показывает обычный snapshot текущих TCP/UDP таблиц.
+В существующую базу `%LocalAppData%\PortSentinel\portsentinel.db` добавляются таблицы `telemetry_captures` и `telemetry_events`. Они создаются через `CREATE TABLE IF NOT EXISTS`; существующие sessions, baselines и reports не изменяются.
 
 ## Privacy boundary
 
-PortSentinel собирает только event metadata и endpoints. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не собираются.
+Архив хранит только нормализованные timestamps, event kinds, process metadata и endpoints. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не сохраняются.
+
+Lifecycle fingerprint исключает PID и используется только для диагностического сравнения. Diff не является malware или threat verdict.
 
 ## Скачать
 
-Используйте `PortSentinel-0.5.1-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
+Используйте `PortSentinel-0.5.2-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
 
 Полностью распакуйте архив перед запуском.
