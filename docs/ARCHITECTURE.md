@@ -1,27 +1,29 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.5.4 добавляет explainable Connection Health поверх существующего read-only ETW pipeline и SQLite telemetry archive.
+PortSentinel 0.5.5 расширяет read-only kernel ETW pipeline до TCP/UDP IPv4/IPv6 и добавляет независимый coverage-анализ поверх существующего SQLite telemetry archive.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV54App / TUI] --> ETW[EtwTelemetryService]
+    UI[PortSentinelV55App / TUI] --> ETW[EtwTelemetryService]
     ETW --> TRACE[TraceEventSession]
     TRACE --> KERNEL[Windows Kernel NetworkTCPIP]
     ETW --> FALLBACK[NetworkSnapshotService]
     FALLBACK --> IPH[Windows IP Helper API]
     UI --> ARCHIVE[TelemetryArchiveService]
     ARCHIVE --> DB[(SQLite telemetry_captures / telemetry_events)]
-    UI --> HEALTH[ConnectionHealthService]
-    HEALTH --> LIVE[Live Capture Report]
-    HEALTH --> SAVED[Archived Capture Report]
-    HEALTH --> REPORTS[JSON / Markdown]
-    UI --> V53[PortSentinelV53App]
-    V53 --> OPS[Search / Comparison / Retention]
+    UI --> COVERAGE[NetworkCoverageService]
+    COVERAGE --> MATRIX[Protocol Matrix]
+    COVERAGE --> ENDPOINTS[Top Remote Endpoints]
+    COVERAGE --> REPORTS[JSON / Markdown]
+    UI --> V54[PortSentinelV54App]
+    V54 --> HEALTH[ConnectionHealthService]
 ```
 
-## ETW lifecycle coverage
+## Kernel ETW coverage
 
-`EtwTelemetryService` подписывается на:
+`EtwTelemetryService` подписывается на следующие группы callbacks.
+
+### TCP IPv4
 
 - `TcpIpConnect`;
 - `TcpIpAccept`;
@@ -30,52 +32,70 @@ flowchart LR
 - `TcpIpReconnect`;
 - `TcpIpFail`.
 
-Connect, accept, disconnect, retransmit и reconnect нормализуются с process/endpoints. `TcpIpFailTraceData` предоставляет protocol и numeric failure code, но не endpoint. Поэтому FAIL event хранится без endpoint и с исходным numeric evidence.
+### TCP IPv6
 
-PortSentinel не назначает undocumented failure codes человеческим значениям. Mapping может быть добавлен только при наличии authoritative таблицы.
+- `TcpIpConnectIPV6`;
+- `TcpIpAcceptIPV6`;
+- `TcpIpDisconnectIPV6`;
+- `TcpIpRetransmitIPV6`;
+- `TcpIpReconnectIPV6`.
 
-## Connection Health analyzer
+### UDP
 
-`ConnectionHealthService` не управляет ETW и не изменяет archive. Он получает `EtwCaptureResult` или `TelemetryCapture` и применяет deterministic rules:
+- `UdpIpSend` и `UdpIpRecv` для IPv4;
+- `UdpIpSendIPV6` и `UdpIpRecvIPV6` для IPv6.
 
-1. `PS-HEALTH-001` — kernel TCP fail events;
-2. `PS-HEALTH-002` — три и более retransmits для process/remote endpoint;
-3. `PS-HEALTH-003` — два и более reconnects для process/remote endpoint;
-4. `PS-HEALTH-004` — шесть и более connects для process/remote endpoint;
-5. `PS-HEALTH-005` — disconnect без connect/reconnect внутри capture window;
-6. `PS-HEALTH-006` — limitation SnapshotFallback.
+События нормализуются в `EtwNetworkEvent` с protocol labels `TCP4`, `TCP6`, `UDP4`, `UDP6`. Payload не читается.
 
-Каждый finding содержит severity, confidence, evidence, limitation, process, remote endpoint и count.
+## Port normalization
 
-## Health score
+TraceEvent parser уже преобразует network-order port fields в host byte order. Версия 0.5.5 удаляет дополнительный `NetworkToHostOrder`, чтобы не выполнять byte-swap дважды. Значение принимается только в диапазоне 0–65535.
 
-Score начинается со 100 и получает bounded penalty:
+UDP callbacks могут не предоставлять source port. В нормализованном event недоступный port равен `0`, а `note` содержит явное limitation.
 
-- High: −25;
-- Medium: −12;
-- Low: −5;
-- Info: 0.
+## Network Coverage analyzer
 
-Результат ограничен диапазоном 0–100:
+`NetworkCoverageService` не запускает ETW и не изменяет SQLite. Он принимает `EtwCaptureResult` или сохранённый `TelemetryCapture` и рассчитывает:
 
-- 90–100 — Stable;
-- 70–89 — Observe;
-- 40–69 — Degraded;
-- 0–39 — Critical.
+- количество IPv4/IPv6 events;
+- количество TCP/UDP events;
+- UDP send/receive counts;
+- protocol matrix по family;
+- unique processes;
+- unique remote endpoints;
+- top 20 remote endpoints;
+- список limitations.
 
-Score является UI summary и не формирует malware, ownership или security verdict.
-
-## Capture boundaries
-
-ETW capture ограничен выбранным окном. Disconnect может относиться к соединению, созданному до начала наблюдения. Отсутствие findings не доказывает здоровье системы за пределами capture window.
-
-В SnapshotFallback отсутствуют kernel fail/reconnect/retransmit events, поэтому analyzer добавляет явное limitation вместо ложного вывода.
+Отчёт показывает только наблюдённые events. Отсутствие family не интерпретируется как доказательство отсутствия трафика.
 
 ## Archive compatibility
 
-Новые event kinds сохраняются существующим `TelemetryArchiveService` без изменения схемы: `kind`, `protocol`, `note` и endpoints уже являются универсальными полями. FAIL records используют пустые endpoints, которые UI показывает как `—`.
+Схема SQLite не изменяется. Таблица `telemetry_events` уже хранит универсальные поля `kind`, `protocol`, addresses, ports и `note`, поэтому новые kinds `UDP_SEND`/`UDP_RECV` и protocols `TCP6`/`UDP4`/`UDP6` сохраняются без migration.
 
-Существующие sessions, baselines, archive records и exports остаются совместимыми.
+Существующие captures, sessions, baselines и reports остаются совместимыми.
+
+## TUI composition
+
+`PortSentinelV55App` предоставляет:
+
+- Coverage Capture;
+- Latest Coverage;
+- Archive Coverage;
+- protocol details;
+- top endpoints;
+- limitations;
+- JSON/Markdown export;
+- вложенный Connection Health v0.5.4.
+
+Предыдущие Control Centers остаются доступными через вложенные панели.
+
+## Capture boundaries
+
+- capture duration ограничена 3–60 секундами;
+- UI v0.5.5 использует 15-секундный coverage profile;
+- сохраняется максимум 5000 нормализованных events;
+- SnapshotFallback является point-in-time table и не предоставляет UDP send/receive ordering;
+- отсутствие события внутри окна не доказывает отсутствие активности вне окна.
 
 ## Privacy boundary
 

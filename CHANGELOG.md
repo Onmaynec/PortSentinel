@@ -2,6 +2,34 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.5] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель Network Coverage;
+- kernel ETW callbacks для TCP IPv6 connect, accept, disconnect, retransmit и reconnect;
+- UDP IPv4 и IPv6 send/receive callbacks;
+- нормализация протоколов `TCP4`, `TCP6`, `UDP4` и `UDP6`;
+- 15-секундный Coverage Capture с автоматическим сохранением в SQLite;
+- coverage-анализ последней или выбранной архивной capture-сессии;
+- protocol matrix с количеством events, процессов, remote endpoints и directions;
+- распределение IPv4/IPv6 и TCP/UDP;
+- top remote endpoints;
+- JSON schema v1 и Markdown export coverage reports;
+- schema v3 для обычного ETW export с UDP и IPv6 counters;
+- полный Connection Health v0.5.4 сохранён во вложенной панели.
+
+### Исправлено
+
+- удалён повторный byte-swap ETW-портов: TraceEvent уже возвращает port values в host byte order.
+
+### Безопасность и ограничения
+
+- UDP source port может отсутствовать в выбранных kernel callbacks и тогда сохраняется как `0`;
+- отсутствие protocol family в bounded capture не доказывает отсутствие трафика;
+- максимум 5000 нормализованных событий сохраняется на capture;
+- packet payload, HTTP body, cookies, credentials, tokens и decrypted TLS content не собираются.
+
 ## [0.5.4] — 2026-08-02
 
 ### Добавлено

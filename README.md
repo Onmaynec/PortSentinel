@@ -4,10 +4,10 @@
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](docs/COMPATIBILITY.md)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](src/PortSentinel/PortSentinel.csproj)
-[![Version](https://img.shields.io/badge/version-0.5.4-00d4ff)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.5.5-00d4ff)](VERSION)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Полноэкранная Windows TUI для ETW telemetry, сетевых snapshots, локального archive и объяснимой диагностики соединений.**
+**Полноэкранная Windows TUI для TCP/UDP ETW telemetry, сетевых snapshots, локального archive и explainable diagnostics.**
 
 [English](docs/README_EN.md) · [Интерфейс](docs/INTERFACE.md) · [Архитектура](docs/ARCHITECTURE.md) · [Обновления](docs/UPDATES.md) · [Roadmap](docs/ROADMAP.md)
 
@@ -16,59 +16,62 @@
 > [!IMPORTANT]
 > PortSentinel — самостоятельный `portsentinel.exe`, а не оболочка над `netstat` или набор PowerShell-команд.
 
-## Что нового в 0.5.4 ❤️‍🩹
+## Что нового в 0.5.5 🌐
 
-- новая панель **Connection Health**;
-- kernel ETW теперь включает `FAIL` и `RECONNECT` events;
-- numeric failure code и protocol сохраняются как evidence без speculative decoding;
-- Capture & Health выполняет 15-секундный capture и автоматически сохраняет его в SQLite;
-- можно анализировать последнюю или выбранную archive capture;
-- findings обнаруживают kernel failures, retransmit bursts, reconnect loops и repeated connects;
-- каждый finding содержит severity, confidence, evidence и limitation;
-- рассчитывается health score 0–100 с уровнями Stable / Observe / Degraded / Critical;
-- отчёты экспортируются в JSON и Markdown;
-- Archive Operations v0.5.3 полностью сохранён во вложенной панели.
+- новая панель **Network Coverage**;
+- TCP IPv6 connect, accept, disconnect, retransmit и reconnect events;
+- UDP IPv4/IPv6 send и receive events;
+- единые protocol families `TCP4`, `TCP6`, `UDP4`, `UDP6`;
+- Coverage Capture выполняет 15-секундный capture и автоматически сохраняет его в SQLite;
+- доступны Latest Coverage и Archive Coverage;
+- protocol matrix показывает events, processes, endpoints и directions;
+- отображаются IPv4/IPv6 и TCP/UDP distribution и top remote endpoints;
+- coverage reports экспортируются в JSON и Markdown;
+- исправлен повторный byte-swap ETW-портов;
+- Connection Health v0.5.4 полностью сохранён во вложенной панели.
 
 ## Основные возможности ✨
 
 | Модуль | Что делает |
 |---|---|
-| ❤️‍🩹 Connection Health | Анализирует fail/reconnect/retransmit patterns и показывает limitations |
-| ⚡ ETW Network Capture | Получает read-only kernel TCP lifecycle metadata |
+| 🌐 Network Coverage | Показывает наблюдённые TCP4/TCP6/UDP4/UDP6 families |
+| ❤️‍🩹 Connection Health | Анализирует fail/reconnect/retransmit patterns |
+| ⚡ ETW Network Capture | Получает read-only kernel lifecycle metadata |
 | 🛟 Snapshot Fallback | Продолжает работу через Windows IP Helper API без elevation |
-| ⏱️ Capture Profiles | Запускает capture на 5/15/30/60 секунд |
+| 🗄️ Telemetry Archive | Сохраняет captures и события в SQLite |
 | 🔎 Archive Search | Ищет события по process, IP, note, kind и backend |
 | ⇄ Selective Comparison | Сравнивает выбранную пару capture-сессий без PID |
-| 🧹 Retention Center | Показывает dry-run и очищает только старый telemetry archive |
+| 🧹 Retention Center | Показывает dry-run и очищает только старый archive |
 | 👁️ Application Watch | Строит timeline процесса и ищет reconnect loops |
-| 🌐 DNS Correlation | Выполняет ограниченный reverse DNS с timeout и кэшем |
 | 🎯 Baseline & Rules | Показывает deviations, evidence и limitations |
 | 🔄 Update Center | Проверяет GitHub Releases, ZIP и SHA-256 |
 
-## Connection Health
+## Network Coverage
 
-1. Откройте **Capture & Health**.
+1. Откройте **Coverage Capture**.
 2. PortSentinel выполнит 15-секундный kernel ETW capture или безопасный snapshot fallback.
-3. Результат автоматически сохранится в SQLite.
-4. Анализатор сгруппирует health patterns и рассчитает score.
-5. Нажмите `Enter`, чтобы открыть evidence и limitation, либо `J`/`M` для экспорта.
+3. Capture автоматически сохранится в SQLite.
+4. Protocol matrix покажет наблюдённые families, процессы и remote endpoints.
+5. `Enter` открывает детали protocol family, `X` — top endpoints, `L` — limitations, `J`/`M` — export.
 
-Доступны также **Latest Health** и **Archive Health** для повторного анализа сохранённых captures.
+Coverage описывает только выбранное capture window. Если family не появилась в отчёте, это не доказывает отсутствие соответствующего трафика.
 
-## Explainable findings
+## TCP и UDP coverage
 
-- `PS-HEALTH-001` — kernel TCP fail events;
-- `PS-HEALTH-002` — retransmit burst;
-- `PS-HEALTH-003` — repeated reconnects;
-- `PS-HEALTH-004` — rapid repeated connections;
-- `PS-HEALTH-005` — disconnect без matching connect внутри capture window;
-- `PS-HEALTH-006` — limitation snapshot fallback.
+Kernel backend обрабатывает:
 
-Health score не является malware verdict. Retransmits и reconnects могут быть вызваны Wi-Fi, congestion, roaming, proxies, connection pooling или штатной retry logic.
+- TCP4: connect, accept, disconnect, retransmit, reconnect и fail;
+- TCP6: connect, accept, disconnect, retransmit и reconnect;
+- UDP4: send и receive;
+- UDP6: send и receive.
+
+Некоторые UDP callbacks не предоставляют source port. В таком случае недоступный port сохраняется как `0` и отмечается в limitations.
 
 ## ETW и fallback
 
 Kernel ETW control обычно требует запуска от администратора. PortSentinel не изменяет системные группы или logger limits. Если права отсутствуют, logger занят или backend возвращает ошибку, используется Windows IP Helper API snapshot.
+
+Версия 0.5.5 также удаляет повторный byte-swap портов: TraceEvent уже возвращает port values в host byte order.
 
 ## Privacy boundary
 
@@ -76,7 +79,7 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 
 ## Быстрый старт ⚡
 
-1. Скачайте `PortSentinel-0.5.4-win-x64.zip` из Releases.
+1. Скачайте `PortSentinel-0.5.5-win-x64.zip` из Releases.
 2. Сверьте архив с `.sha256`.
 3. Полностью распакуйте ZIP в отдельную папку.
 4. Запустите `portsentinel.exe`.
@@ -85,9 +88,11 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 
 | Клавиша | Действие |
 |---|---|
-| `↑` / `↓` | Выбор пункта, capture или finding |
+| `↑` / `↓` | Выбор пункта, capture или protocol family |
 | `W` / `S` | Альтернативная навигация в главном меню |
-| `Enter` | Открыть экран, evidence или limitation |
+| `Enter` | Открыть экран или details |
+| `X` | Показать top remote endpoints |
+| `L` | Показать coverage limitations |
 | `J` / `M` | Экспорт JSON / Markdown |
 | `Y` | Подтвердить retention после preview |
 | `Esc` / `Q` | Назад или выход |
@@ -119,10 +124,10 @@ dotnet run --project src/PortSentinel/PortSentinel.csproj
 
 ## Roadmap 🗺️
 
-- `0.5.x` — IPv6/UDP ETW coverage, pagination и automated tests;
+- `0.5.x` — pagination, installer watch, tests и kernel logger conflict handling;
 - `0.6.0` — read-only Firewall correlation и безопасные managed rules;
 - `1.0.0` — стабильные schemas, подписанные релизы и backward compatibility.
 
 ---
 
-**PortSentinel 0.5.4** · Windows 10/11 x64 · .NET 8 · MIT
+**PortSentinel 0.5.5** · Windows 10/11 x64 · .NET 8 · MIT

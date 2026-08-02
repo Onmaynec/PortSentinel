@@ -7,13 +7,13 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.5.4";
+    public const string Version = "0.5.5";
 
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        Console.Title = $"PortSentinel {Version} — Connection Health";
+        Console.Title = $"PortSentinel {Version} — Network Coverage";
 
         if (!OperatingSystem.IsWindows())
         {
@@ -95,12 +95,18 @@ internal static class Program
                 archive,
                 new TelemetryArchiveOperationsService(store.DatabasePath, archive),
                 v52Panel);
-            var app = new PortSentinelV54App(
+            var v54Panel = new PortSentinelV54App(
                 terminal,
                 etw,
                 archive,
                 new ConnectionHealthService(store.ReportsDirectory),
                 v53Panel);
+            var app = new PortSentinelV55App(
+                terminal,
+                etw,
+                archive,
+                new NetworkCoverageService(store.ReportsDirectory),
+                v54Panel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -125,7 +131,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
-        Console.WriteLine("v0.5.4: kernel fail/reconnect telemetry и explainable Connection Health reports.");
+        Console.WriteLine("v0.5.5: TCP4/TCP6 и UDP4/UDP6 ETW coverage с protocol reports.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");

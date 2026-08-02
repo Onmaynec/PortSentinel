@@ -39,20 +39,26 @@
 
 ## ✅ `0.5.4` — Connection Health
 
-- kernel `TcpIpFail` и `TcpIpReconnect` events;
-- сохранение numeric failure evidence без speculative decoding;
-- live и archived health analysis;
-- explainable fail/retransmit/reconnect/repeated-connect findings;
-- capture-boundary и snapshot-fallback limitations;
-- health score 0–100;
-- JSON/Markdown health reports.
+- kernel fail/reconnect events;
+- explainable health findings и score;
+- live/archive reports.
+
+## ✅ `0.5.5` — Network Coverage
+
+- TCP IPv6 connect/accept/disconnect/retransmit/reconnect callbacks;
+- UDP IPv4/IPv6 send/receive callbacks;
+- normalized `TCP4`, `TCP6`, `UDP4`, `UDP6` families;
+- live/latest/archive coverage reports;
+- protocol matrix, IP-family distribution и top endpoints;
+- JSON/Markdown exports;
+- corrected ETW port byte-order handling;
+- explicit UDP source-port и bounded-window limitations.
 
 ## `0.5.x` — Telemetry Stabilization
 
-- IPv6 и UDP provider coverage;
 - pagination очень больших timeline;
 - installer watch preset;
-- unit/integration tests для ETW mapping, health, archive, trackers, DNS и process tree;
+- unit/integration tests для ETW mapping, coverage, health, archive, trackers, DNS и process tree;
 - обработка simultaneous kernel logger conflicts;
 - документированная mapping table для известных failure codes только при наличии authoritative источника.
 
