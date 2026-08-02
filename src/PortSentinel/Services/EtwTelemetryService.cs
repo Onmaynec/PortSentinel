@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Diagnostics.Tracing.Parsers.Kernel;
+using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Session;
 using PortSentinel.Models;
 
@@ -170,13 +170,13 @@ internal sealed class EtwTelemetryService
                     : "Kernel ETW metadata; packet payload не собирается."));
         }
 
-        session.Source.Kernel.TcpIpConnectIPV4 += data =>
-            Add("CONNECT", data.PID, data.saddr, data.sport, data.daddr, data.dport);
-        session.Source.Kernel.TcpIpAcceptIPV4 += data =>
-            Add("ACCEPT", data.PID, data.saddr, data.sport, data.daddr, data.dport, inbound: true);
-        session.Source.Kernel.TcpIpDisconnectIPV4 += data =>
+        session.Source.Kernel.TcpIpConnect += data =>
+            Add("CONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+        session.Source.Kernel.TcpIpAccept += data =>
+            Add("ACCEPT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport, inbound: true);
+        session.Source.Kernel.TcpIpDisconnect += data =>
             Add("DISCONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
-        session.Source.Kernel.TcpIpRetransmitIPV4 += data =>
+        session.Source.Kernel.TcpIpRetransmit += data =>
             Add("RETRANSMIT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
 
         session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
