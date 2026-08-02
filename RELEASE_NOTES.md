@@ -1,41 +1,31 @@
-# PortSentinel 0.5.7 — Installer Watch
+# PortSentinel 0.5.8 — ETW Session Guard
 
-Версия 0.5.7 добавляет управляемый before/after workflow для наблюдения за сетевой metadata во время установки программ. PortSentinel записывает baseline, ждёт ручного запуска установщика, выполняет watch capture и строит объяснимый diff.
+Версия 0.5.8 добавляет безопасный контроль состояния ETW logger sessions перед capture. PortSentinel показывает активные session names, отделяет собственные сессии от чужих, сохраняет диагностику запуска и корректно использует snapshot fallback, не вмешиваясь в работу сторонних инструментов.
 
 ## Главное
 
-- новая панель **Installer Watch**;
-- Standard Watch: baseline 8 секунд и watch 30 секунд;
-- Deep Watch: baseline 10 секунд и watch 60 секунд;
-- обе capture-сессии автоматически сохраняются в SQLite;
-- optional process hint приоритизирует похожие process names;
-- добавленные events группируются по процессу, endpoints и TCP/UDP family;
-- отдельно считаются `FAIL`, `RETRANSMIT` и `RECONNECT` signals;
-- доступен анализ последней пары архивных captures;
-- added metadata, process candidates и limitations доступны в TUI;
-- JSON schema v1 и Markdown reports;
-- Timeline Explorer v0.5.6 полностью сохранён внутри новой панели.
+- новая верхнеуровневая панель **ETW Session Guard**;
+- preflight inventory активных ETW session names;
+- разделение `PortSentinel-*` и foreign sessions;
+- 15-секундный Guarded Capture с автоматическим сохранением в SQLite;
+- диагностика попыток запуска, backend, fallback и количества активных sessions;
+- best-effort классификация access denied, name collision, resource limit и unavailable session;
+- один bounded retry только при вероятном name collision;
+- JSON schema v1 и Markdown exports inventory/diagnostics;
+- dry-run cleanup orphan sessions с подтверждением клавишей `Y`;
+- cleanup допускается только для имён с префиксом `PortSentinel-`;
+- Installer Watch v0.5.7 полностью сохранён во вложенной панели.
 
-## Как работает
+## Safety boundary
 
-1. Закройте лишние приложения и запишите baseline.
-2. Запустите установщик вручную.
-3. Вернитесь в PortSentinel и начните watch capture.
-4. После capture программа сравнит PID-независимые network fingerprints.
-5. Process hint будет использован только для сортировки кандидатов.
+PortSentinel никогда автоматически не останавливает, не перезапускает и не изменяет foreign ETW sessions. Cleanup требует явного подтверждения и применяет ownership filter до attach/stop. Перед cleanup следует закрыть другие экземпляры PortSentinel, потому что активная сессия другого экземпляра также использует префикс `PortSentinel-`.
 
-PortSentinel не запускает installer EXE и не изменяет систему.
+## Fallback и ограничения
 
-## Модель доверия
+Kernel ETW control обычно требует elevated access. При недостаточных правах, logger/resource conflict или другой ошибке сохраняется snapshot fallback через Windows IP Helper API. Классификация текстовых ошибок является диагностической и не заменяет Windows Event Log или vendor-specific troubleshooting.
 
-Installer Watch не доказывает, что конкретное приложение владеет endpoint. Новые события могут принадлежать фоновым приложениям, службам или scheduled tasks. Установщик может делегировать трафик child processes, service hosts, package managers или browser.
-
-Baseline и watch являются отдельными bounded captures. События между ними не записываются. Outbound ephemeral local port исключается из fingerprint для снижения ожидаемого шума.
-
-## Privacy boundary
-
-Сохраняется только network metadata. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не собираются.
+Inventory содержит только имена ETW sessions. Capture хранит только network metadata. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не собираются.
 
 ## Скачать
 
-Используйте `PortSentinel-0.5.7-win-x64.zip`, проверьте файл `.sha256` и полностью распакуйте архив перед запуском.
+Используйте `PortSentinel-0.5.8-win-x64.zip`, проверьте файл `.sha256` и полностью распакуйте архив перед запуском.
