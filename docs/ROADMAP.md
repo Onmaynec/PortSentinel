@@ -54,11 +54,21 @@
 - corrected ETW port byte-order handling;
 - explicit UDP source-port и bounded-window limitations.
 
+## ✅ `0.5.6` — Timeline Explorer
+
+- server-side pagination capture index и event timeline;
+- dynamic page size, PageUp/PageDown и Home/End navigation;
+- kind/protocol presets;
+- parameterized search по process, addresses, ports и note;
+- sequence jump с вычислением page/index;
+- JSON/Markdown export текущей SQL-page;
+- indexes по capture/sequence, capture/kind и capture/protocol;
+- просмотр больших captures без полной materialization.
+
 ## `0.5.x` — Telemetry Stabilization
 
-- pagination очень больших timeline;
 - installer watch preset;
-- unit/integration tests для ETW mapping, coverage, health, archive, trackers, DNS и process tree;
+- unit/integration tests для ETW mapping, coverage, health, archive, timeline, trackers, DNS и process tree;
 - обработка simultaneous kernel logger conflicts;
 - документированная mapping table для известных failure codes только при наличии authoritative источника.
 

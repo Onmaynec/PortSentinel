@@ -1,100 +1,113 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.5.5 расширяет read-only kernel ETW pipeline до TCP/UDP IPv4/IPv6 и добавляет независимый coverage-анализ поверх существующего SQLite telemetry archive.
+PortSentinel 0.5.6 добавляет paged query layer поверх существующего read-only ETW pipeline и SQLite telemetry archive. Timeline Explorer читает только текущую страницу capture index или event timeline.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV55App / TUI] --> ETW[EtwTelemetryService]
+    UI[PortSentinelV56App / TUI] --> TIMELINE[TimelineExplorerService]
+    TIMELINE --> COUNT[COUNT queries]
+    TIMELINE --> PAGE[LIMIT / OFFSET pages]
+    TIMELINE --> FILTERS[Parameterized filters]
+    TIMELINE --> DB[(SQLite telemetry_captures / telemetry_events)]
+    TIMELINE --> REPORTS[Current-page JSON / Markdown]
+    UI --> V55[PortSentinelV55App]
+    V55 --> ETW[EtwTelemetryService]
     ETW --> TRACE[TraceEventSession]
     TRACE --> KERNEL[Windows Kernel NetworkTCPIP]
     ETW --> FALLBACK[NetworkSnapshotService]
     FALLBACK --> IPH[Windows IP Helper API]
-    UI --> ARCHIVE[TelemetryArchiveService]
-    ARCHIVE --> DB[(SQLite telemetry_captures / telemetry_events)]
-    UI --> COVERAGE[NetworkCoverageService]
-    COVERAGE --> MATRIX[Protocol Matrix]
-    COVERAGE --> ENDPOINTS[Top Remote Endpoints]
-    COVERAGE --> REPORTS[JSON / Markdown]
-    UI --> V54[PortSentinelV54App]
-    V54 --> HEALTH[ConnectionHealthService]
+    V55 --> COVERAGE[NetworkCoverageService]
 ```
 
-## Kernel ETW coverage
+## Timeline query layer
 
-`EtwTelemetryService` подписывается на следующие группы callbacks.
+`TimelineExplorerService` не запускает capture и не изменяет сохранённые events. Он работает поверх существующих таблиц.
 
-### TCP IPv4
+### Capture index
 
-- `TcpIpConnect`;
-- `TcpIpAccept`;
-- `TcpIpDisconnect`;
-- `TcpIpRetransmit`;
-- `TcpIpReconnect`;
-- `TcpIpFail`.
+1. `COUNT(*)` определяет общее число captures;
+2. page number ограничивается реальным диапазоном;
+3. header records читаются через `ORDER BY id DESC LIMIT $limit OFFSET $offset`;
+4. UI получает только одну `TimelineCapturePage`.
 
-### TCP IPv6
+### Event timeline
 
-- `TcpIpConnectIPV6`;
-- `TcpIpAcceptIPV6`;
-- `TcpIpDisconnectIPV6`;
-- `TcpIpRetransmitIPV6`;
-- `TcpIpReconnectIPV6`.
+1. фильтры нормализуются;
+2. отдельный count query определяет число matching events;
+3. SQLite применяет filter до materialization;
+4. текущая page читается по `sequence, id`;
+5. UI получает `TimelineEventPage`, а не полный `TelemetryCapture`.
 
-### UDP
+Page size ограничен диапазоном 10–200 и в TUI подстраивается под высоту терминала.
 
-- `UdpIpSend` и `UdpIpRecv` для IPv4;
-- `UdpIpSendIPV6` и `UdpIpRecvIPV6` для IPv6.
+## Filters
 
-События нормализуются в `EtwNetworkEvent` с protocol labels `TCP4`, `TCP6`, `UDP4`, `UDP6`. Payload не читается.
+Поддерживаются независимые ограничения:
 
-## Port normalization
+- exact event `kind`;
+- exact `protocol` family;
+- text search по process name;
+- local/remote address;
+- local/remote port;
+- diagnostic note.
 
-TraceEvent parser уже преобразует network-order port fields в host byte order. Версия 0.5.5 удаляет дополнительный `NetworkToHostOrder`, чтобы не выполнять byte-swap дважды. Значение принимается только в диапазоне 0–65535.
+Kind и protocol берутся только из фиксированных UI presets. Text search передаётся через `$search`. Символы `\\`, `%` и `_` экранируются для literal `LIKE` matching.
 
-UDP callbacks могут не предоставлять source port. В нормализованном event недоступный port равен `0`, а `note` содержит явное limitation.
+SQL identifiers и clauses не строятся из пользовательского ввода.
 
-## Network Coverage analyzer
+## Sequence jump
 
-`NetworkCoverageService` не запускает ETW и не изменяет SQLite. Он принимает `EtwCaptureResult` или сохранённый `TelemetryCapture` и рассчитывает:
+`FindSequenceAsync` сначала проверяет, что target event соответствует активному filter. Затем count query с `sequence <= $sequence` вычисляет ordinal matching row:
 
-- количество IPv4/IPv6 events;
-- количество TCP/UDP events;
-- UDP send/receive counts;
-- protocol matrix по family;
-- unique processes;
-- unique remote endpoints;
-- top 20 remote endpoints;
-- список limitations.
+```text
+page  = ((row - 1) / pageSize) + 1
+index = (row - 1) % pageSize
+```
 
-Отчёт показывает только наблюдённые events. Отсутствие family не интерпретируется как доказательство отсутствия трафика.
+Полный capture для перехода не загружается.
 
-## Archive compatibility
+## Page export
 
-Схема SQLite не изменяется. Таблица `telemetry_events` уже хранит универсальные поля `kind`, `protocol`, addresses, ports и `note`, поэтому новые kinds `UDP_SEND`/`UDP_RECV` и protocols `TCP6`/`UDP4`/`UDP6` сохраняются без migration.
+`ExportPageAsync` получает уже отображаемый `TimelineEventPage` и сохраняет только его items. JSON и Markdown содержат:
 
-Существующие captures, sessions, baselines и reports остаются совместимыми.
+- capture ID;
+- page/page size;
+- first/last row;
+- total matching events;
+- активный filter;
+- event metadata;
+- privacy boundary.
 
-## TUI composition
+Экспорт не выполняет скрытый full-archive query.
 
-`PortSentinelV55App` предоставляет:
+## SQLite indexes
 
-- Coverage Capture;
-- Latest Coverage;
-- Archive Coverage;
-- protocol details;
-- top endpoints;
-- limitations;
-- JSON/Markdown export;
-- вложенный Connection Health v0.5.4.
+Версия 0.5.6 создаёт индексы через `CREATE INDEX IF NOT EXISTS`:
+
+- `telemetry_events(capture_id, sequence)`;
+- `telemetry_events(capture_id, kind, sequence)`;
+- `telemetry_events(capture_id, protocol, sequence)`.
+
+Таблицы, columns и existing records не мигрируются. Индексы совместимы с предыдущими версиями.
+
+## Existing telemetry pipeline
+
+Вложенный `PortSentinelV55App` сохраняет весь функционал Network Coverage:
+
+- TCP4/TCP6 lifecycle callbacks;
+- UDP4/UDP6 send/receive callbacks;
+- snapshot fallback;
+- SQLite archive;
+- Connection Health;
+- protocol matrix и reports.
 
 Предыдущие Control Centers остаются доступными через вложенные панели.
 
 ## Capture boundaries
 
 - capture duration ограничена 3–60 секундами;
-- UI v0.5.5 использует 15-секундный coverage profile;
-- сохраняется максимум 5000 нормализованных events;
-- SnapshotFallback является point-in-time table и не предоставляет UDP send/receive ordering;
+- сохраняется максимум 5000 нормализованных events на capture;
+- SnapshotFallback является point-in-time table;
 - отсутствие события внутри окна не доказывает отсутствие активности вне окна.
 
 ## Privacy boundary
@@ -111,5 +124,5 @@ PortSentinel работает только с network metadata. Он не соб
 
 - `.NET 8 / net8.0-windows`;
 - `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser;
-- `Microsoft.Data.Sqlite` для local archive;
+- `Microsoft.Data.Sqlite` для archive и paged queries;
 - Windows IP Helper API и Toolhelp32 через P/Invoke.

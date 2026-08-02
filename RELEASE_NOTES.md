@@ -1,34 +1,38 @@
-# PortSentinel 0.5.5 — Network Coverage
+# PortSentinel 0.5.6 — Timeline Explorer
 
-Версия 0.5.5 расширяет read-only kernel ETW capture до TCP/UDP для IPv4 и IPv6 и добавляет отдельные coverage reports для live и архивных captures.
+Версия 0.5.6 делает telemetry archive удобным для больших captures: capture index и event timeline теперь читаются отдельными SQL-pages, поддерживают фильтры и не требуют загружать все события в память.
 
 ## Главное
 
-- новая панель **Network Coverage**;
-- TCP IPv6 connect, accept, disconnect, retransmit и reconnect events;
-- UDP IPv4/IPv6 send и receive events;
-- единые protocol labels `TCP4`, `TCP6`, `UDP4`, `UDP6`;
-- 15-секундный Coverage Capture с автоматическим архивированием;
-- анализ последней или выбранной archive capture;
-- protocol matrix: events, processes, remote endpoints и directions;
-- IPv4/IPv6 и TCP/UDP distribution;
-- top remote endpoints;
-- JSON schema v1 и Markdown coverage reports;
-- обычный ETW export обновлён до schema v3;
-- полный Connection Health v0.5.4 сохранён внутри новой панели.
+- новая панель **Timeline Explorer**;
+- server-side pagination capture index и event timeline;
+- PageUp/PageDown для перехода между страницами;
+- Home/End для первой и последней страницы;
+- kind presets: connect, accept, disconnect, retransmit, reconnect, fail, UDP send/receive, listener и snapshot;
+- protocol presets: `TCP4`, `TCP6`, `UDP4`, `UDP6`;
+- text search по process name, IP address, port и diagnostic note;
+- переход к точному sequence number с вычислением нужной страницы;
+- JSON/Markdown export текущей отфильтрованной SQL-page;
+- полный Network Coverage v0.5.5 сохранён внутри новой панели.
 
-## Исправление портов
+## Масштабирование
 
-TraceEvent уже возвращает TCP/UDP port values в host byte order. Версия 0.5.5 удаляет повторный byte-swap, который мог отображать ETW-порты неверно.
+`TimelineExplorerService` выполняет отдельный `COUNT(*)` и paged query с `LIMIT/OFFSET`. Размер страницы подстраивается под высоту терминала. Крупный capture не материализуется целиком при просмотре, фильтрации или переходе к sequence.
 
-## Ограничения UDP и coverage
+Для ускорения создаются backward-compatible indexes:
 
-Некоторые kernel UDP callbacks не предоставляют source port. В таком случае PortSentinel сохраняет `0` и явно показывает limitation. Coverage описывает только события внутри выбранного окна: отсутствие family в отчёте не доказывает отсутствие трафика.
+- `capture_id + sequence`;
+- `capture_id + kind + sequence`;
+- `capture_id + protocol + sequence`.
+
+## Безопасность поиска
+
+Свободный текст передаётся SQLite через parameter. Символы `%`, `_` и `\\` экранируются и рассматриваются как обычный текст. Таблицы и сохранённые записи не изменяются.
 
 ## Privacy boundary
 
-PortSentinel собирает только kernel event metadata. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не собираются и не сохраняются.
+Timeline Explorer работает только с уже сохранённой network metadata. Packet payload, HTTP body, cookies, credentials, tokens и decrypted TLS content не собираются и не сохраняются.
 
 ## Скачать
 
-Используйте `PortSentinel-0.5.5-win-x64.zip` и проверьте файл `.sha256`. Полностью распакуйте архив перед запуском.
+Используйте `PortSentinel-0.5.6-win-x64.zip` и проверьте файл `.sha256`. Полностью распакуйте архив перед запуском.
