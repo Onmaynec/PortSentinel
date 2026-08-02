@@ -1,42 +1,45 @@
 # PortSentinel
 
-**A full-screen Windows TUI for network snapshots, ETW event metadata, local telemetry history, and explainable analysis.**
+**A full-screen Windows TUI for ETW event metadata, network snapshots, local telemetry archives, and explainable analysis.**
 
-PortSentinel 0.5.2 is a standalone self-contained `portsentinel.exe`. It archives ETW or snapshot-fallback captures in SQLite, lets the user browse stored event metadata, and compares the two latest captures using a PID-independent lifecycle fingerprint.
+PortSentinel 0.5.3 is a standalone self-contained `portsentinel.exe`. It adds bounded capture profiles, parameterized archive search, selective capture comparison, and retention controls with a mandatory dry-run preview.
 
-## 0.5.2 highlights
+## 0.5.3 highlights
 
-- automatic SQLite persistence for ETW and fallback captures;
-- telemetry history with backend status and lifecycle counters;
-- stored event browsing;
-- JSON schema v1 and Markdown archive exports;
-- comparison of the two latest captures;
-- added-event and missing-fingerprint views;
-- JSON and Markdown telemetry-diff exports;
-- the complete 0.5.1 ETW Control Center remains available.
+- capture profiles for 5, 15, 30, and 60 seconds;
+- automatic SQLite persistence for every profile capture;
+- archive search by process name, local/remote IP address, and diagnostic note;
+- presets for retransmit, disconnect, snapshot-fallback, and listener events;
+- comparison of any pair from the latest 50 captures;
+- archive statistics including capture/event counts, date range, and database size;
+- retention policies that keep the latest 25, 50, 100, or 250 captures;
+- a mandatory preview and explicit `Y` confirmation before deletion;
+- the complete 0.5.2 Telemetry Archive remains available.
 
-## Storage and compatibility
+## Retention safety
 
-Version 0.5.2 adds `telemetry_captures` and `telemetry_events` to the existing `%LocalAppData%\PortSentinel\portsentinel.db`. Tables are created with `CREATE TABLE IF NOT EXISTS`; existing sessions, baselines, and reports remain unchanged.
+Retention deletes only old rows from `telemetry_captures`; related `telemetry_events` are removed by a foreign-key cascade inside a transaction. Existing sessions, baselines, and report files are untouched.
 
-The lifecycle fingerprint includes event kind, protocol, endpoints, and process name, but excludes PID. It is diagnostic metadata and not a malware verdict.
+## Search and comparison
+
+Search uses parameterized SQLite queries. Selective comparison uses the existing PID-independent lifecycle fingerprint based on event kind, protocol, endpoints, and process name. The result is diagnostic metadata, not a malware verdict.
 
 ## Privacy boundary
 
-PortSentinel does not capture or store packet payloads, HTTP bodies, cookies, credentials, tokens, or decrypted TLS content. Archived data contains timestamps, event kinds, process metadata, endpoints, backend status, and explicit limitations.
+PortSentinel does not capture or store packet payloads, HTTP bodies, cookies, credentials, tokens, or decrypted TLS content.
 
 ## Existing capabilities
 
 - read-only kernel ETW TCP lifecycle capture with safe snapshot fallback;
+- SQLite telemetry history and exports;
 - Application Watch and reconnect-loop indicators;
 - bounded reverse-DNS correlation;
 - native Windows network process tree;
-- SQLite session history, baselines, and comparisons;
-- explainable rules with Authenticode and SHA-256 enrichment;
+- session history, baselines, and explainable rules;
 - GitHub Releases updater with SHA-256 verification.
 
 ## Start
 
-Download `PortSentinel-0.5.2-win-x64.zip` from GitHub Releases, verify the `.sha256` file, extract the archive to a writable folder, and run `portsentinel.exe`.
+Download `PortSentinel-0.5.3-win-x64.zip` from GitHub Releases, verify the `.sha256` file, extract the archive to a writable folder, and run `portsentinel.exe`.
 
 The Russian [`README.md`](../README.md) is the primary project documentation.
