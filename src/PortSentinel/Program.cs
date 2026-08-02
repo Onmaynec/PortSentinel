@@ -7,13 +7,13 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.5.0";
+    public const string Version = "0.5.1";
 
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        Console.Title = $"PortSentinel {Version} — Extended Telemetry";
+        Console.Title = $"PortSentinel {Version} — ETW Telemetry";
 
         if (!OperatingSystem.IsWindows())
         {
@@ -67,7 +67,7 @@ internal static class Program
                 new BaselineFingerprintService(store),
                 new RuleEngine(new ProcessSecurityService()),
                 legacyPanel);
-            var app = new PortSentinelV5App(
+            var v5Panel = new PortSentinelV5App(
                 terminal,
                 network,
                 store,
@@ -76,6 +76,10 @@ internal static class Program
                 new SessionComparisonService(store),
                 new ApplicationWatchService(store, dns),
                 v4Panel);
+            var app = new PortSentinelV51App(
+                terminal,
+                new EtwTelemetryService(network, store.ReportsDirectory),
+                v5Panel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -100,7 +104,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
-        Console.WriteLine("v0.5.0: Application Watch, DNS correlation, process tree и session comparison.");
+        Console.WriteLine("v0.5.1: read-only kernel ETW network events с безопасным snapshot fallback.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");

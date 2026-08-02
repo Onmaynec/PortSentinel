@@ -21,37 +21,38 @@
 ## ✅ `0.4.0` — Baseline & Explainable Rules
 
 - стабильный baseline fingerprint без зависимости от PID;
-- `NewListenerRule`;
-- `WildcardListenerRule`;
-- `UnsignedNetworkProcessRule`;
-- `TempDirectoryNetworkProcessRule`;
+- explainable rules;
 - severity, confidence, evidence и limitations;
-- Authenticode metadata;
-- SHA-256 enrichment;
-- отдельный Rules Center и карточка finding.
+- Authenticode metadata и SHA-256 enrichment.
 
 ## ✅ `0.5.0` — Extended Telemetry
 
-- Application Watch для выбранного процесса;
-- snapshot timeline с first seen / last seen / observations;
-- connection cycles и reconnect loop detection;
-- автоматический JSON/Markdown watch report;
-- best-effort DNS correlation с timeout и кэшем;
-- Network Process Tree через Toolhelp32;
-- session comparison по стабильному fingerprint;
-- JSON/Markdown session diff;
-- сохранение полного v0.4.0 Control Center.
+- Application Watch и reconnect-loop detection;
+- reverse DNS correlation;
+- Network Process Tree;
+- session comparison и exports;
+- полный предыдущий Control Center.
+
+## ✅ `0.5.1` — ETW Telemetry
+
+- read-only kernel ETW backend через TraceEvent;
+- TCP IPv4 connect/accept/disconnect/retransmit events;
+- capability probe и elevated-access status;
+- ограниченное capture window;
+- JSON/Markdown ETW reports;
+- автоматический snapshot fallback;
+- явная privacy boundary без packet payload.
 
 ## `0.5.x` — Telemetry Stabilization
 
-- ETW backend как дополнительный источник событий;
-- persistence timeline events в SQLite;
-- DNS cache API и более глубокая correlation;
+- IPv6 и UDP provider coverage;
+- persistence ETW/timeline events в SQLite;
 - connection failures и timeout classification;
+- выбор длительности capture;
 - installer watch preset;
-- выбор произвольных сессий для comparison;
-- unit/integration tests для trackers, DNS и process tree;
-- фильтры и pagination для больших timeline.
+- фильтры и pagination больших timeline;
+- unit/integration tests для ETW mapping, trackers, DNS и process tree;
+- обработка simultaneous kernel logger conflicts.
 
 ## `0.6.0` — Managed Firewall
 

@@ -1,29 +1,28 @@
-# PortSentinel 0.5.0 — Extended Telemetry
+# PortSentinel 0.5.1 — ETW Telemetry
 
-Версия 0.5.0 добавляет наблюдение за жизненным циклом сетевой активности без перехвата payload и без обязательных прав администратора.
+Версия 0.5.1 добавляет дополнительный read-only kernel ETW backend для событий жизненного цикла TCP-соединений и сохраняет безопасный snapshot fallback.
 
 ## Главное
 
-- новая панель **Extended Telemetry**;
-- Application Watch для выбранного сетевого процесса;
-- first seen, last seen, observations и connection cycles;
-- обнаружение повторяющихся reconnect loops;
-- автоматический JSON/Markdown timeline report;
-- reverse DNS correlation для внешних IP с timeout и кэшем;
-- Network Process Tree через Windows Toolhelp32;
-- сравнение двух последних SQLite-сессий;
-- diff endpoints, listeners, внешних соединений и процессов;
-- JSON/Markdown export session diff;
-- полный Control Center v0.4.0 сохранён внутри новой панели.
+- новая панель **ETW Telemetry**;
+- kernel TCP IPv4 events: connect, accept, disconnect и retransmit;
+- фиксированное 12-секундное окно capture;
+- список событий и подробная карточка process/endpoints;
+- capability probe для elevated access;
+- автоматический fallback на Windows IP Helper API snapshot;
+- JSON schema v1 и Markdown export;
+- полный Extended Telemetry Control Center v0.5.0 сохранён внутри новой панели.
 
-## Модель данных
+## Доступ и fallback
 
-Application Watch использует периодические снимки Windows TCP/UDP tables. PortSentinel не сохраняет payload, HTTP body, cookies, токены или расшифрованное TLS-содержимое.
+Управление kernel ETW session обычно требует запуска от администратора. Если права отсутствуют, системная ETW session занята или backend возвращает ошибку, PortSentinel не завершается аварийно и показывает обычный snapshot текущих TCP/UDP таблиц.
 
-DNS и reconnect findings являются диагностическими metadata, а не malware verdict. ETW backend запланирован для ветки 0.5.x после стабилизации snapshot timeline.
+## Privacy boundary
+
+PortSentinel собирает только event metadata и endpoints. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не собираются.
 
 ## Скачать
 
-Используйте `PortSentinel-0.5.0-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
+Используйте `PortSentinel-0.5.1-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
 
 Полностью распакуйте архив перед запуском.

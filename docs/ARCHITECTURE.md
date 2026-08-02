@@ -1,77 +1,68 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.4.0 состоит из четырёх основных слоёв: Windows telemetry, session storage, baseline/rules и полноэкранная TUI.
+PortSentinel 0.5.1 использует два взаимозаменяемых источника сетевой telemetry: kernel ETW для событий жизненного цикла TCP и Windows IP Helper API для стабильных snapshots и fallback.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV4App / TUI] --> SNAP[NetworkSnapshotService]
-    SNAP --> API[Windows IP Helper API]
-    UI --> STORE[SessionStore / SQLite]
-    UI --> BASE[BaselineFingerprintService]
-    UI --> RULES[RuleEngine]
-    RULES --> ENRICH[ProcessSecurityService]
-    ENRICH --> HASH[SHA-256]
-    ENRICH --> SIGN[Authenticode certificate]
-    UI --> LEGACY[PortSentinelApp / Network Tools]
-    LEGACY --> UPDATE[GitHubUpdateService]
+    UI[PortSentinelV51App / TUI] --> ETW[EtwTelemetryService]
+    ETW --> TRACE[TraceEventSession]
+    TRACE --> KERNEL[Windows Kernel NetworkTCPIP]
+    ETW --> FALLBACK[NetworkSnapshotService]
+    FALLBACK --> IPH[Windows IP Helper API]
+    UI --> V5[PortSentinelV5App]
+    V5 --> WATCH[ApplicationWatchService]
+    V5 --> DNS[DnsCorrelationService]
+    V5 --> TREE[ProcessTreeService]
+    V5 --> DIFF[SessionComparisonService]
+    V5 --> V4[PortSentinelV4App]
+    V4 --> STORE[SessionStore / SQLite]
+    V4 --> RULES[Baseline + RuleEngine]
 ```
 
-## Ответственность компонентов
+## ETW backend
 
-| Компонент | Ответственность |
-|---|---|
-| `Program.cs` | Windows check, параметры запуска и сборка dependency graph |
-| `PortSentinelV4App` | Главное меню, sessions, baseline и Explainable Rules |
-| `PortSentinelApp` | Network Tools предыдущего поколения |
-| `NetworkSnapshotService` | TCP/UDP IPv4/IPv6 через `iphlpapi.dll` |
-| `SessionStore` | SQLite sessions, baselines и exports |
-| `BaselineFingerprintService` | Стабильное сравнение baseline без PID |
-| `RuleEngine` | Детерминированные explainable rules |
-| `ProcessSecurityService` | SHA-256 и Authenticode metadata |
-| `Terminal` | Рендеринг, цвета, рамки, spinner и progress |
-| `GitHubUpdateService` | Release API, ZIP, SHA-256 и перезапуск |
+`EtwTelemetryService` создаёт ограниченную real-time `TraceEventSession`, подписывается на kernel `NetworkTCPIP` events и останавливает session после заданного окна.
 
-## Стабильный baseline fingerprint
+Первый vertical slice обрабатывает:
 
-Обычный live identity включает PID и подходит для сравнения последовательных снимков. Baseline fingerprint использует protocol, endpoints, process path/name и state, но не PID. Поэтому штатный перезапуск процесса не создаёт ложный новый listener только из-за нового PID.
+- TCP IPv4 connect;
+- TCP IPv4 accept;
+- TCP IPv4 disconnect;
+- TCP IPv4 retransmit.
 
-Старые baseline из v0.3.0 остаются совместимыми: fingerprint вычисляется из сохранённых полей `baseline_entries`, миграция схемы SQLite не требуется.
+Событие нормализуется в `EtwNetworkEvent`: timestamp, kind, PID, process name, protocol, local endpoint, remote endpoint и диагностическая note.
 
-## Rule engine
+## Capability и fallback
 
-v0.4.0 содержит четыре правила:
+Перед capture выполняется capability probe:
 
-1. новый listener относительно baseline;
-2. wildcard listener;
-3. executable без Authenticode;
-4. executable из Temp или Downloads.
+1. проверяется Windows;
+2. определяется elevated token;
+3. при наличии прав запускается kernel ETW;
+4. при отказе доступа, конфликте logger session или другой ошибке вызывается `NetworkSnapshotService`;
+5. UI явно показывает `KernelEtw` или `SnapshotFallback` и причину fallback.
 
-Каждый `RuleFinding` хранит:
+PortSentinel не изменяет членство пользователя в `Performance Log Users`, не отключает сторонние ETW sessions и не меняет системные logger limits.
 
-- rule id;
-- severity;
-- confidence;
-- evidence;
-- limitation;
-- связанную `NetworkEntry`;
-- optional SHA-256, signature status и publisher.
+## Privacy boundary
 
-Rule engine не формирует malware verdict.
+Backend включает только kernel network event metadata. Packet capture не включается. Приложение не собирает:
 
-## Enrichment
+- packet payload;
+- HTTP body;
+- cookies или credentials;
+- tokens;
+- decrypted TLS content.
 
-`ProcessSecurityService` работает локально:
+JSON/Markdown exports сохраняются в `%LocalAppData%\PortSentinel\reports` и содержат только нормализованную metadata.
 
-1. группирует уникальные executable paths;
-2. рассчитывает SHA-256 с безопасным shared-read;
-3. читает Authenticode certificate;
-4. сохраняет publisher или явное limitation;
-5. не отправляет hashes, paths или telemetry во внешние сервисы.
+## Предыдущие слои
 
-Наличие сертификата не означает полную проверку цепочки доверия. Это ограничение явно показывается в UI.
+`PortSentinelV5App` остаётся отдельным вложенным Control Center и предоставляет Application Watch, DNS correlation, Network Process Tree и Session Comparison. `PortSentinelV4App` сохраняет SQLite sessions, baseline и Explainable Rules. Старые форматы базы не требуют миграции для v0.5.1.
 
-## Хранилище и приватность
+## Зависимости
 
-SQLite расположен в `%LocalAppData%\PortSentinel\portsentinel.db` и использует WAL. Отчёты сохраняются в `%LocalAppData%\PortSentinel\reports`.
-
-PortSentinel не сохраняет payload, HTTP body, cookies, токены или расшифрованное TLS-содержимое.
+- `.NET 8 / net8.0-windows`;
+- `Microsoft.Data.Sqlite` для локального storage;
+- `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser;
+- Windows IP Helper API и Toolhelp32 через P/Invoke.
