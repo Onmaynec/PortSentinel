@@ -1,0 +1,22 @@
+name: Cleanup v0.5.8 release branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cleanup-v058-branch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete merged release branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/release/v0.5.8-etw-session-guard" || true
