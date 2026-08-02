@@ -44,7 +44,7 @@ internal static class Program
         }
 
         if (args.Contains("--help", StringComparer.OrdinalIgnoreCase) ||
-            args.Contains("-h", StringComparison.OrdinalIgnoreCase))
+            args.Contains("-h", StringComparer.OrdinalIgnoreCase))
         {
             PrintHelp();
             return 0;
