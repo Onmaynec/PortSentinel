@@ -30,23 +30,28 @@
 - SHA-256 enrichment;
 - отдельный Rules Center и карточка finding.
 
-## `0.4.x` — Rule Engine Stabilization
+## ✅ `0.5.0` — Extended Telemetry
 
-- unit tests для fingerprints и правил;
-- фильтры по severity, rule и process;
-- экспорт findings в JSON/Markdown;
-- allowlist для ожидаемых executable/listeners;
-- cache enrichment по path + file metadata;
-- улучшенная проверка доверия certificate chain.
+- Application Watch для выбранного процесса;
+- snapshot timeline с first seen / last seen / observations;
+- connection cycles и reconnect loop detection;
+- автоматический JSON/Markdown watch report;
+- best-effort DNS correlation с timeout и кэшем;
+- Network Process Tree через Toolhelp32;
+- session comparison по стабильному fingerprint;
+- JSON/Markdown session diff;
+- сохранение полного v0.4.0 Control Center.
 
-## `0.5.0` — Extended Telemetry
+## `0.5.x` — Telemetry Stabilization
 
-- ETW backend;
-- DNS correlation;
-- process tree;
-- connection failures и reconnect loops;
-- installer/application watch modes;
-- timeline и session comparison.
+- ETW backend как дополнительный источник событий;
+- persistence timeline events в SQLite;
+- DNS cache API и более глубокая correlation;
+- connection failures и timeout classification;
+- installer watch preset;
+- выбор произвольных сессий для comparison;
+- unit/integration tests для trackers, DNS и process tree;
+- фильтры и pagination для больших timeline.
 
 ## `0.6.0` — Managed Firewall
 
