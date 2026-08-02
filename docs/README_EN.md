@@ -1,28 +1,26 @@
 # PortSentinel
 
-**A full-screen Windows TUI for ETW event metadata, network snapshots, local telemetry archives, and explainable analysis.**
+**A full-screen Windows TUI for ETW metadata, network snapshots, local telemetry archives, and explainable connection diagnostics.**
 
-PortSentinel 0.5.3 is a standalone self-contained `portsentinel.exe`. It adds bounded capture profiles, parameterized archive search, selective capture comparison, and retention controls with a mandatory dry-run preview.
+PortSentinel 0.5.4 adds kernel TCP fail/reconnect events and a Connection Health analyzer for live or archived captures.
 
-## 0.5.3 highlights
+## 0.5.4 highlights
 
-- capture profiles for 5, 15, 30, and 60 seconds;
-- automatic SQLite persistence for every profile capture;
-- archive search by process name, local/remote IP address, and diagnostic note;
-- presets for retransmit, disconnect, snapshot-fallback, and listener events;
-- comparison of any pair from the latest 50 captures;
-- archive statistics including capture/event counts, date range, and database size;
-- retention policies that keep the latest 25, 50, 100, or 250 captures;
-- a mandatory preview and explicit `Y` confirmation before deletion;
-- the complete 0.5.2 Telemetry Archive remains available.
+- kernel `TcpIpFail` and `TcpIpReconnect` callbacks through TraceEvent;
+- numeric failure code and protocol preserved as evidence without speculative decoding;
+- a 15-second Capture & Health workflow with automatic SQLite persistence;
+- analysis of the latest or any selected archived capture;
+- explainable findings for kernel failures, retransmit bursts, reconnect loops, and rapid repeated connects;
+- explicit capture-window and snapshot-fallback limitations;
+- a 0–100 health score with Stable, Observe, Degraded, and Critical grades;
+- JSON schema v1 and Markdown health reports;
+- the complete 0.5.3 Archive Operations panel remains available.
 
-## Retention safety
+## Trust model
 
-Retention deletes only old rows from `telemetry_captures`; related `telemetry_events` are removed by a foreign-key cascade inside a transaction. Existing sessions, baselines, and report files are untouched.
+Every finding contains severity, confidence, evidence, and a limitation. PortSentinel preserves numeric kernel failure codes but does not claim undocumented meanings. Retransmits and reconnects can have normal causes such as Wi-Fi loss, congestion, roaming, proxies, or application retry logic.
 
-## Search and comparison
-
-Search uses parameterized SQLite queries. Selective comparison uses the existing PID-independent lifecycle fingerprint based on event kind, protocol, endpoints, and process name. The result is diagnostic metadata, not a malware verdict.
+The health score is a diagnostic summary, not a malware, ownership, or security verdict.
 
 ## Privacy boundary
 
@@ -30,16 +28,15 @@ PortSentinel does not capture or store packet payloads, HTTP bodies, cookies, cr
 
 ## Existing capabilities
 
-- read-only kernel ETW TCP lifecycle capture with safe snapshot fallback;
-- SQLite telemetry history and exports;
-- Application Watch and reconnect-loop indicators;
-- bounded reverse-DNS correlation;
-- native Windows network process tree;
-- session history, baselines, and explainable rules;
+- read-only kernel ETW with safe snapshot fallback;
+- capture profiles, archive search, selective comparison, and retention preview;
+- SQLite telemetry and session history;
+- Application Watch and reverse-DNS correlation;
+- process tree, baselines, explainable rules, and SHA-256/Authenticode enrichment;
 - GitHub Releases updater with SHA-256 verification.
 
 ## Start
 
-Download `PortSentinel-0.5.3-win-x64.zip` from GitHub Releases, verify the `.sha256` file, extract the archive to a writable folder, and run `portsentinel.exe`.
+Download `PortSentinel-0.5.4-win-x64.zip`, verify the `.sha256` file, extract it to a writable directory, and run `portsentinel.exe`.
 
 The Russian [`README.md`](../README.md) is the primary project documentation.
