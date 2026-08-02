@@ -76,12 +76,14 @@ internal sealed class EtwTelemetryService
         string extension = format.Equals("json", StringComparison.OrdinalIgnoreCase) ? "json" : "md";
         string stamp = capture.StartedAt.ToString("yyyyMMdd-HHmmss");
         string path = Path.Combine(_reportsDirectory, $"etw-network-{stamp}.{extension}");
+        int reconnectCount = capture.Events.Count(item => item.Kind == "RECONNECT");
+        int failCount = capture.Events.Count(item => item.Kind == "FAIL");
 
         if (extension == "json")
         {
             var payload = new
             {
-                schemaVersion = 1,
+                schemaVersion = 2,
                 backend = capture.Mode.ToString(),
                 capture.StartedAt,
                 capture.EndedAt,
@@ -91,6 +93,8 @@ internal sealed class EtwTelemetryService
                 capture.AcceptCount,
                 capture.DisconnectCount,
                 capture.RetransmitCount,
+                reconnectCount,
+                failCount,
                 privacy = "No packet payload, HTTP body, cookies, tokens or decrypted TLS content is captured.",
                 events = capture.Events
             };
@@ -108,7 +112,7 @@ internal sealed class EtwTelemetryService
             .AppendLine($"- **Ended:** {capture.EndedAt:O}")
             .AppendLine($"- **Status:** {Escape(capture.Status)}")
             .AppendLine($"- **Events:** {capture.Events.Count}")
-            .AppendLine($"- **Connect / Accept / Disconnect / Retransmit:** {capture.ConnectCount} / {capture.AcceptCount} / {capture.DisconnectCount} / {capture.RetransmitCount}")
+            .AppendLine($"- **Connect / Accept / Disconnect / Retransmit / Reconnect / Fail:** {capture.ConnectCount} / {capture.AcceptCount} / {capture.DisconnectCount} / {capture.RetransmitCount} / {reconnectCount} / {failCount}")
             .AppendLine()
             .AppendLine("> PortSentinel does not capture packet payload, HTTP body, cookies, tokens, or decrypted TLS content.")
             .AppendLine()
@@ -154,6 +158,13 @@ internal sealed class EtwTelemetryService
             int sourcePortValue = FormatPort(sourcePort);
             int destinationPortValue = FormatPort(destinationPort);
 
+            string note = kind switch
+            {
+                "RETRANSMIT" => "Повторная передача TCP-сегмента; возможна потеря пакета или congestion.",
+                "RECONNECT" => "Kernel TCP reconnect event; повторное установление соединения требует контекста приложения.",
+                _ => "Kernel ETW metadata; packet payload не собирается."
+            };
+
             events.Enqueue(new EtwNetworkEvent(
                 Interlocked.Increment(ref sequence),
                 DateTimeOffset.Now,
@@ -165,9 +176,23 @@ internal sealed class EtwTelemetryService
                 inbound ? destinationPortValue : sourcePortValue,
                 inbound ? source : destination,
                 inbound ? sourcePortValue : destinationPortValue,
-                kind == "RETRANSMIT"
-                    ? "Повторная передача TCP-сегмента; возможна потеря пакета или congestion."
-                    : "Kernel ETW metadata; packet payload не собирается."));
+                note));
+        }
+
+        void AddFailure(int processId, int protocol, int failureCode)
+        {
+            events.Enqueue(new EtwNetworkEvent(
+                Interlocked.Increment(ref sequence),
+                DateTimeOffset.Now,
+                "FAIL",
+                processId,
+                ResolveProcessName(processId),
+                protocol == 6 ? "TCP" : $"IP-PROTO-{protocol}",
+                string.Empty,
+                0,
+                string.Empty,
+                0,
+                $"Kernel TCP fail event: protocol={protocol}, failureCode={failureCode}. Numeric code сохранён без speculative verdict."));
         }
 
         session.Source.Kernel.TcpIpConnect += data =>
@@ -178,6 +203,10 @@ internal sealed class EtwTelemetryService
             Add("DISCONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
         session.Source.Kernel.TcpIpRetransmit += data =>
             Add("RETRANSMIT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+        session.Source.Kernel.TcpIpReconnect += data =>
+            Add("RECONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+        session.Source.Kernel.TcpIpFail += data =>
+            AddFailure(data.ProcessID, data.Proto, data.FailureCode);
 
         session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
         Task processor = Task.Run(() => session.Source.Process(), CancellationToken.None);
@@ -201,7 +230,7 @@ internal sealed class EtwTelemetryService
             started,
             DateTimeOffset.Now,
             EtwBackendMode.KernelEtw,
-            $"Kernel ETW capture завершена за {duration.TotalSeconds:0} сек.",
+            $"Kernel ETW capture завершена за {duration.TotalSeconds:0} сек. Fail/reconnect metadata включена.",
             result,
             capability.IsElevated,
             null);
