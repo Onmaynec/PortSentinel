@@ -1,35 +1,34 @@
 # PortSentinel
 
-**A full-screen Windows TUI for ETW metadata, SQLite archives, Installer Watch, and explainable network diagnostics.**
+**A full-screen Windows TUI for ETW metadata, safe session control, SQLite archives, and explainable network diagnostics.**
 
-PortSentinel 0.5.7 adds a guided before/after workflow for observing network metadata while software is installed manually.
+PortSentinel 0.5.8 adds an ETW Session Guard that inventories active logger session names, separates PortSentinel-owned sessions from foreign sessions, records guarded-capture diagnostics, and provides explicitly confirmed cleanup for orphaned `PortSentinel-*` sessions only.
 
-## 0.5.7 highlights
+## 0.5.8 highlights
 
-- Standard Watch: an 8-second baseline followed by a 30-second watch capture;
-- Deep Watch: a 10-second baseline followed by a 60-second watch capture;
-- a manual installer-start checkpoint between captures;
-- automatic SQLite persistence for both captures;
-- an optional process-name hint used only to prioritize candidates;
-- PID-independent comparison of normalized network fingerprints;
-- outbound ephemeral local ports excluded from fingerprints to reduce expected noise;
-- process, endpoint, TCP/UDP, and failure-signal summaries;
-- analysis of the latest archived pair;
-- JSON schema v1 and Markdown reports;
-- the complete 0.5.6 Timeline Explorer remains available.
+- active ETW session-name inventory;
+- ownership boundary between `PortSentinel-*` and foreign sessions;
+- a 15-second guarded capture with automatic SQLite persistence;
+- attempt, backend, fallback, session-count, and native-code diagnostics;
+- best-effort classification for access denied, name collision, resource limit, and unavailable-session failures;
+- one bounded retry only for a likely name collision;
+- JSON schema v1 and Markdown inventory/diagnostic reports;
+- dry-run cleanup that requires `Y` confirmation;
+- foreign ETW sessions are never stopped, restarted, or modified;
+- the complete 0.5.7 Installer Watch remains available.
 
-## Trust model
+## Safety boundary
 
-PortSentinel does not launch an installer executable or modify the system. A process hint is a display priority, not proof of attribution.
+Cleanup applies an ownership filter before attach/stop and accepts only names beginning with `PortSentinel-`. Other PortSentinel instances should be closed first, because an active capture from another instance uses the same prefix.
 
-New metadata may come from background applications, Windows services, scheduled tasks, child processes, package managers, service hosts, or a browser opened by the installer. Baseline and watch are separate bounded captures, so activity in the gap is not recorded.
+Kernel ETW control generally requires elevation. If the kernel session cannot be controlled, PortSentinel uses its Windows IP Helper API snapshot fallback. Failure classification is diagnostic and does not replace Windows Event Log or vendor-specific troubleshooting.
 
 ## Existing capabilities
 
+- Installer Watch before/after reports;
 - server-side Timeline Explorer pagination and filters;
 - TCP4/TCP6 and UDP4/UDP6 kernel ETW coverage;
 - Connection Health diagnostics;
-- safe Windows IP Helper API snapshot fallback;
 - archive search, selective comparison, and retention preview;
 - sessions, baselines, explainable rules, process tree, and reverse DNS;
 - GitHub Releases updater with SHA-256 verification.
@@ -40,6 +39,6 @@ PortSentinel does not capture or store packet payloads, HTTP bodies, cookies, cr
 
 ## Start
 
-Download `PortSentinel-0.5.7-win-x64.zip`, verify its `.sha256` file, extract it to a writable directory, and run `portsentinel.exe`.
+Download `PortSentinel-0.5.8-win-x64.zip`, verify its `.sha256` file, extract it to a writable directory, and run `portsentinel.exe` as administrator for kernel ETW capture.
 
 The Russian [`README.md`](../README.md) is the primary project documentation.
