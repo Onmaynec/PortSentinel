@@ -54,15 +54,23 @@
 - JSON/Markdown telemetry diff;
 - backward-compatible schema extension.
 
+## ✅ `0.5.3` — Archive Operations
+
+- capture profiles на 5/15/30/60 секунд;
+- параметризованный поиск по process, IP и note;
+- preset-фильтры retransmit/disconnect/fallback/listener;
+- выбор произвольной пары captures для comparison;
+- Archive Status и размер SQLite-файла;
+- retention policies 25/50/100/250;
+- обязательный dry-run preview и подтверждение `Y`;
+- транзакционная каскадная очистка старых telemetry events.
+
 ## `0.5.x` — Telemetry Stabilization
 
 - IPv6 и UDP provider coverage;
 - connection failures и timeout classification;
-- выбор длительности capture;
 - installer watch preset;
-- выбор произвольных captures для comparison;
-- retention и очистка старых archive records;
-- фильтры и pagination больших timeline;
+- pagination очень больших timeline;
 - unit/integration tests для ETW mapping, archive, trackers, DNS и process tree;
 - обработка simultaneous kernel logger conflicts.
 

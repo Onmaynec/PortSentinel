@@ -1,31 +1,35 @@
-# PortSentinel 0.5.2 — Telemetry Archive
+# PortSentinel 0.5.3 — Archive Operations
 
-Версия 0.5.2 превращает одноразовые ETW/fallback captures в локальный архив с историей, просмотром событий и сравнением сетевого lifecycle между запусками.
+Версия 0.5.3 добавляет управляемые capture profiles и полноценные операции над локальным telemetry archive: поиск, выбор произвольной пары для comparison и безопасную retention-очистку.
 
 ## Главное
 
-- новая панель **Telemetry Archive**;
-- автоматическое сохранение каждого ETW или snapshot fallback capture в SQLite;
-- история до 100 последних capture-сессий;
-- просмотр сохранённых event metadata и backend status;
-- JSON schema v1 и Markdown export архивных capture;
-- сравнение двух последних capture по lifecycle fingerprint без PID;
-- список новых и исчезнувших lifecycle fingerprints;
-- JSON/Markdown export telemetry diff;
-- полный ETW Control Center v0.5.1 сохранён внутри новой панели.
+- новая панель **Archive Operations**;
+- capture profiles на 5, 15, 30 и 60 секунд;
+- автоматическое архивирование результата каждого profile capture;
+- поиск по process name, local/remote IP и diagnostic notes;
+- preset-фильтры для retransmit, disconnect, fallback и listener events;
+- selective comparison любой пары из последних 50 captures;
+- Archive Status с количеством captures/events, диапазоном дат и размером базы;
+- retention policies: сохранить последние 25, 50, 100 или 250 captures;
+- обязательный dry-run preview до удаления;
+- удаление только после явного подтверждения клавишей `Y`;
+- полный Telemetry Archive v0.5.2 сохранён внутри новой панели.
 
-## Хранилище и совместимость
+## Retention safety
 
-В существующую базу `%LocalAppData%\PortSentinel\portsentinel.db` добавляются таблицы `telemetry_captures` и `telemetry_events`. Они создаются через `CREATE TABLE IF NOT EXISTS`; существующие sessions, baselines и reports не изменяются.
+Retention удаляет только старые строки `telemetry_captures`. Связанные `telemetry_events` очищаются каскадно внутри транзакции. Таблицы sessions, baselines и сохранённые reports не изменяются.
+
+## Search and comparison
+
+Поиск использует параметризованные SQLite queries. Selective comparison применяет тот же lifecycle fingerprint без PID, который появился в v0.5.2. Результат является диагностическим diff и не формирует malware или threat verdict.
 
 ## Privacy boundary
 
-Архив хранит только нормализованные timestamps, event kinds, process metadata и endpoints. Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не сохраняются.
-
-Lifecycle fingerprint исключает PID и используется только для диагностического сравнения. Diff не является malware или threat verdict.
+PortSentinel по-прежнему не собирает packet payload, HTTP body, cookies, credentials, tokens или расшифрованное TLS-содержимое.
 
 ## Скачать
 
-Используйте `PortSentinel-0.5.2-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
+Используйте `PortSentinel-0.5.3-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
 
 Полностью распакуйте архив перед запуском.

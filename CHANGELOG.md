@@ -2,6 +2,30 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.3] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель Archive Operations;
+- capture profiles на 5, 15, 30 и 60 секунд;
+- автоматическое сохранение profile captures в существующий telemetry archive;
+- параметризованный поиск по process name, IP addresses и diagnostic notes;
+- preset-фильтры retransmit, disconnect, snapshot fallback и listeners;
+- выбор произвольной пары из последних 50 captures для lifecycle comparison;
+- Archive Status с количеством captures/events, диапазоном дат и размером SQLite-файла;
+- retention policies для сохранения последних 25, 50, 100 или 250 captures;
+- обязательный dry-run preview перед удалением;
+- каскадная очистка связанных telemetry events в одной транзакции;
+- полный Telemetry Archive v0.5.2 сохранён во вложенной панели.
+
+### Безопасность и совместимость
+
+- retention удаляет только `telemetry_captures` и связанные `telemetry_events`;
+- sessions, baselines и обычные reports не затрагиваются;
+- поиск использует параметры SQLite, а не строковую сборку SQL;
+- очистка выполняется только после явного подтверждения клавишей `Y`;
+- packet payload, HTTP body, cookies, credentials, tokens и decrypted TLS content не сохраняются.
+
 ## [0.5.2] — 2026-08-02
 
 ### Добавлено

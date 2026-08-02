@@ -1,105 +1,105 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.5.2 разделяет telemetry pipeline на три независимых слоя: источник событий, нормализацию capture и долговременный SQLite archive.
+PortSentinel 0.5.3 разделяет telemetry pipeline на четыре независимых слоя: источник событий, нормализацию capture, долговременный SQLite archive и безопасные операции над архивом.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV52App / TUI] --> ETW[EtwTelemetryService]
+    UI[PortSentinelV53App / TUI] --> ETW[EtwTelemetryService]
     ETW --> TRACE[TraceEventSession]
     TRACE --> KERNEL[Windows Kernel NetworkTCPIP]
     ETW --> FALLBACK[NetworkSnapshotService]
     FALLBACK --> IPH[Windows IP Helper API]
     UI --> ARCHIVE[TelemetryArchiveService]
     ARCHIVE --> DB[(SQLite telemetry_captures / telemetry_events)]
-    ARCHIVE --> REPORTS[JSON / Markdown reports]
-    UI --> V51[PortSentinelV51App]
+    UI --> OPS[TelemetryArchiveOperationsService]
+    OPS --> DB
+    OPS --> SEARCH[Parameterized Search]
+    OPS --> COMPARE[Selective Comparison]
+    OPS --> RETENTION[Preview + Transactional Retention]
+    UI --> V52[PortSentinelV52App]
+    V52 --> V51[PortSentinelV51App]
     V51 --> V5[PortSentinelV5App]
     V5 --> V4[PortSentinelV4App]
-    V4 --> STORE[SessionStore / SQLite sessions + baselines]
 ```
 
 ## Capture backend
 
-`EtwTelemetryService` остаётся владельцем read-only capture:
+`EtwTelemetryService` остаётся владельцем read-only capture и поддерживает kernel ETW TCP IPv4 lifecycle events с автоматическим snapshot fallback через Windows IP Helper API.
 
-- kernel ETW TCP IPv4 connect;
-- accept;
-- disconnect;
-- retransmit;
-- автоматический snapshot fallback через Windows IP Helper API.
-
-Сервис возвращает `EtwCaptureResult` и не знает, будет ли результат сохранён. Это позволяет использовать capture как одноразово в старой панели v0.5.1, так и с persistence в v0.5.2.
+В v0.5.3 UI передаёт сервису один из ограниченных profiles: 5, 15, 30 или 60 секунд. Capture backend не знает о persistence и не выполняет SQL.
 
 ## Telemetry archive
 
-`TelemetryArchiveService` получает готовый `EtwCaptureResult` и выполняет транзакцию:
+`TelemetryArchiveService` отвечает только за основную запись и чтение archive:
 
-1. вставляет header в `telemetry_captures`;
-2. вставляет нормализованные события в `telemetry_events`;
-3. сохраняет backend mode, counters, elevated status и fallback reason;
-4. фиксирует транзакцию только после записи всех событий.
+1. вставляет capture header;
+2. вставляет нормализованные event records;
+3. сохраняет lifecycle fingerprint;
+4. фиксирует capture и events одной транзакцией;
+5. экспортирует captures и comparisons в JSON/Markdown.
 
-Таблицы создаются через `CREATE TABLE IF NOT EXISTS`. Существующие `sessions`, `session_entries`, `baselines` и `baseline_entries` не изменяются.
+Существующие `sessions`, `session_entries`, `baselines` и `baseline_entries` не изменяются.
 
-## Схема archive
+## Archive operations
 
-`telemetry_captures` хранит:
+`TelemetryArchiveOperationsService` добавляет read/query/maintenance сценарии поверх существующей схемы.
 
-- timestamps начала и окончания;
-- `KernelEtw` или `SnapshotFallback`;
-- status и failure reason;
-- event/connect/accept/disconnect/retransmit counters;
-- elevated flag.
+### Search
 
-`telemetry_events` хранит:
+Поиск выполняется через параметры SQLite. Пользовательский текст не конкатенируется с SQL. Query может ограничивать:
 
-- sequence и timestamp;
+- process name;
+- local или remote IP address;
+- diagnostic note;
 - event kind;
-- PID и process name;
-- protocol и endpoints;
-- диагностическую note;
-- lifecycle fingerprint.
+- backend mode.
 
-## Lifecycle comparison
+Результаты ограничены максимум 500 последними matching events.
 
-Fingerprint строится из:
+### Selective comparison
+
+Пользователь выбирает две записи из последних 50 captures. Сервис загружает обе через `TelemetryArchiveService`, определяет older/newer по timestamp и применяет тот же lifecycle fingerprint:
 
 - event kind;
 - protocol;
 - local endpoint;
 - remote endpoint;
-- process name.
+- process name;
+- PID исключён.
 
-PID намеренно исключён. Поэтому штатный перезапуск процесса не считается самостоятельным lifecycle deviation. `CompareLatestAsync` строит множества fingerprints двух последних captures и возвращает новые события и исчезнувшие fingerprints.
+Comparison является диагностическим diff и не формирует threat verdict.
 
-Comparison является диагностическим diff и не формирует threat или malware verdict.
+### Retention
+
+Retention построен как двухэтапная операция:
+
+1. `PreviewRetentionAsync` рассчитывает число captures/events для удаления и крайнюю дату;
+2. UI требует явное подтверждение `Y`;
+3. `ApplyRetentionAsync` удаляет старые capture headers в транзакции;
+4. связанные events удаляются через `ON DELETE CASCADE`;
+5. сохраняются последние 25, 50, 100 или 250 records.
+
+Retention не удаляет обычные sessions, baselines или файлы reports.
 
 ## TUI composition
 
-`PortSentinelV52App` предоставляет:
+`PortSentinelV53App` предоставляет:
 
-- Capture & Archive;
-- Telemetry History;
-- Capture Comparison;
-- вложенный ETW Control Center v0.5.1.
+- Capture Profiles;
+- Archive Search;
+- Selective Comparison;
+- Retention Center;
+- вложенный Telemetry Archive v0.5.2.
 
-Предыдущие панели остаются доступными как вложенные уровни, поэтому новая версия не удаляет Application Watch, DNS correlation, process tree, sessions, baseline, rules и Network Tools.
+Предыдущие панели сохраняются как вложенные уровни, поэтому v0.5.3 не удаляет ETW capability, Application Watch, DNS correlation, process tree, sessions, baseline, rules или Network Tools.
 
 ## Privacy boundary
 
-В archive сохраняются только timestamps, event kinds, process metadata, endpoints и backend limitations. PortSentinel не собирает и не сохраняет:
-
-- packet payload;
-- HTTP body;
-- cookies или credentials;
-- tokens;
-- decrypted TLS content.
-
-Reports записываются в `%LocalAppData%\PortSentinel\reports`, база — в `%LocalAppData%\PortSentinel\portsentinel.db`.
+В archive сохраняются только timestamps, event kinds, process metadata, endpoints и backend limitations. PortSentinel не собирает и не сохраняет packet payload, HTTP body, cookies, credentials, tokens или decrypted TLS content.
 
 ## Зависимости
 
 - `.NET 8 / net8.0-windows`;
-- `Microsoft.Data.Sqlite` для локального archive;
+- `Microsoft.Data.Sqlite` для archive и parameterized operations;
 - `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser;
 - Windows IP Helper API и Toolhelp32 через P/Invoke.

@@ -4,10 +4,10 @@
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](docs/COMPATIBILITY.md)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](src/PortSentinel/PortSentinel.csproj)
-[![Version](https://img.shields.io/badge/version-0.5.2-00d4ff)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.5.3-00d4ff)](VERSION)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Полноэкранная Windows TUI для сетевых snapshots, ETW-событий, локальной истории и объяснимого анализа.**
+**Полноэкранная Windows TUI для ETW-событий, сетевых snapshots, локального telemetry archive и объяснимого анализа.**
 
 [English](docs/README_EN.md) · [Интерфейс](docs/INTERFACE.md) · [Архитектура](docs/ARCHITECTURE.md) · [Обновления](docs/UPDATES.md) · [Roadmap](docs/ROADMAP.md)
 
@@ -16,45 +16,72 @@
 > [!IMPORTANT]
 > PortSentinel — самостоятельный `portsentinel.exe`, а не оболочка над `netstat` или набор PowerShell-команд.
 
-## Что нового в 0.5.2 🗄️
+## Что нового в 0.5.3 🧰
 
-- добавлена верхнеуровневая панель **Telemetry Archive**;
-- ETW и snapshot fallback captures автоматически сохраняются в SQLite;
-- доступна история последних capture-сессий с backend status и counters;
-- сохранённые события можно открывать и экспортировать в JSON/Markdown;
-- Capture Comparison сравнивает две последние записи по lifecycle fingerprint без PID;
-- показываются новые и исчезнувшие lifecycle events;
-- telemetry diff экспортируется в JSON и Markdown;
-- полный ETW Control Center v0.5.1 сохранён во вложенной панели.
+- добавлена верхнеуровневая панель **Archive Operations**;
+- доступны capture profiles на 5, 15, 30 и 60 секунд;
+- каждый profile capture автоматически сохраняется в SQLite;
+- Archive Search ищет по process name, IP addresses и diagnostic notes;
+- добавлены preset-фильтры retransmit, disconnect, fallback и listeners;
+- Selective Comparison позволяет выбрать любую пару из последних 50 captures;
+- Retention Center показывает размер archive и dry-run удаления;
+- можно сохранить последние 25, 50, 100 или 250 captures;
+- удаление запускается только после явного подтверждения `Y`;
+- полный Telemetry Archive v0.5.2 сохранён во вложенной панели.
 
 ## Основные возможности ✨
 
 | Модуль | Что делает |
 |---|---|
-| 🗄️ Telemetry Archive | Сохраняет ETW/fallback captures и открывает историю |
-| ⇄ Capture Comparison | Сравнивает две последние capture-сессии без зависимости от PID |
+| ⏱️ Capture Profiles | Запускает ETW/fallback capture на 5/15/30/60 секунд |
+| 🔎 Archive Search | Ищет события по процессу, IP, note, kind и backend |
+| ⇄ Selective Comparison | Сравнивает выбранную пару capture-сессий |
+| 🧹 Retention Center | Показывает dry-run и очищает только старый telemetry archive |
+| 🗄️ Telemetry Archive | Сохраняет ETW/fallback captures и открывает history |
 | ⚡ ETW Network Capture | Получает kernel TCP lifecycle events без packet payload |
 | 🛟 Snapshot Fallback | Продолжает работу через Windows IP Helper API без ETW |
 | 👁️ Application Watch | Строит timeline процесса и ищет reconnect loops |
 | 🌐 DNS Correlation | Выполняет ограниченный reverse DNS с timeout и кэшем |
-| 🌳 Network Process Tree | Показывает родительские процессы через Toolhelp32 |
 | 🎯 Baseline & Rules | Показывает deviations, evidence и limitations |
-| 🔐 Executable Enrichment | Рассчитывает SHA-256 и читает Authenticode metadata |
 | 🔄 Update Center | Проверяет GitHub Releases, ZIP и SHA-256 |
 
-## Telemetry Archive
+## Capture Profiles
 
-1. Откройте **Capture & Archive**.
-2. PortSentinel выполнит 12-секундный kernel ETW capture или безопасный snapshot fallback.
-3. Capture и его события будут транзакционно сохранены в SQLite.
-4. В **Telemetry History** можно открыть запись и экспортировать её.
-5. **Capture Comparison** сравнивает две последние записи по стабильному lifecycle fingerprint.
+Профили ограничивают длительность capture и не меняют backend:
 
-Fingerprint включает event kind, protocol, endpoints и process name, но не PID. Поэтому перезапуск процесса сам по себе не создаёт ложный diff.
+- **Quick** — 5 секунд;
+- **Standard** — 15 секунд;
+- **Deep** — 30 секунд;
+- **Investigator** — 60 секунд.
 
-## ETW и fallback
+При наличии elevated access используется kernel ETW. Если ETW недоступен или logger занят, PortSentinel безопасно переключается на Windows IP Helper API snapshot fallback. Результат автоматически архивируется.
 
-Kernel ETW control обычно требует запуска от администратора. PortSentinel не изменяет системные настройки или группы доступа. Если права отсутствуют, logger занят или backend возвращает ошибку, программа использует Windows IP Helper API snapshot.
+## Archive Search
+
+Поиск работает по локальной SQLite-базе и использует параметризованные queries. Доступны:
+
+- свободный поиск по process name, local/remote IP и diagnostic note;
+- события `RETRANSMIT`;
+- события `DISCONNECT`;
+- все события из `SnapshotFallback` captures;
+- fallback listeners.
+
+## Selective Comparison
+
+Пользователь выбирает две capture-сессии из последних 50 записей. PortSentinel автоматически определяет более старую и новую запись и сравнивает их по lifecycle fingerprint.
+
+Fingerprint включает event kind, protocol, endpoints и process name, но не PID. Diff является диагностическим metadata и не формирует threat verdict.
+
+## Retention Center
+
+Retention Center показывает:
+
+- количество captures и events;
+- oldest/newest capture;
+- текущий размер SQLite-файла;
+- число captures/events, которые будут удалены.
+
+Сначала всегда отображается **dry-run preview**. Очистка выполняется только после подтверждения клавишей `Y`. Удаляются только старые `telemetry_captures` и связанные `telemetry_events`; sessions, baselines и reports не затрагиваются.
 
 ## Privacy boundary
 
@@ -63,8 +90,8 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 ## Быстрый старт ⚡
 
 1. Откройте раздел **Releases**.
-2. Скачайте `PortSentinel-0.5.2-win-x64.zip`.
-3. Сверьте архив с `PortSentinel-0.5.2-win-x64.zip.sha256`.
+2. Скачайте `PortSentinel-0.5.3-win-x64.zip`.
+3. Сверьте архив с `PortSentinel-0.5.3-win-x64.zip.sha256`.
 4. Полностью распакуйте ZIP в отдельную папку.
 5. Запустите `portsentinel.exe`.
 
@@ -76,10 +103,10 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 |---|---|
 | `↑` / `↓` | Выбор пункта, capture или события |
 | `W` / `S` | Альтернативная навигация в главном меню |
-| `Enter` | Открыть экран или карточку события |
-| `R` | Повторить capture или обновить history |
+| `Enter` | Открыть экран или подтвердить выбор |
 | `J` / `M` | Экспорт JSON / Markdown |
-| `X` | Показать исчезнувшие fingerprints в comparison |
+| `X` | Показать missing fingerprints |
+| `Y` | Подтвердить retention после preview |
 | `Esc` / `Q` | Назад или выход |
 
 ## Локальное хранилище
@@ -89,7 +116,7 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 %LocalAppData%\PortSentinel\reports
 ```
 
-SQLite использует WAL. Версия 0.5.2 добавляет таблицы `telemetry_captures` и `telemetry_events` без изменения существующих sessions и baselines.
+SQLite использует WAL. Telemetry archive хранится в таблицах `telemetry_captures` и `telemetry_events` без изменения существующих sessions и baselines.
 
 ## Командные параметры
 
@@ -120,7 +147,7 @@ dotnet publish src/PortSentinel/PortSentinel.csproj `
 
 ## Roadmap 🗺️
 
-- `0.5.x` — IPv6/UDP ETW coverage, failure classification, capture duration и tests;
+- `0.5.x` — IPv6/UDP ETW coverage, failure classification и automated tests;
 - `0.6.0` — read-only Firewall correlation и безопасные managed rules;
 - `1.0.0` — стабильные schemas, подписанные релизы и backward compatibility.
 
@@ -130,4 +157,4 @@ dotnet publish src/PortSentinel/PortSentinel.csproj `
 
 ---
 
-**PortSentinel 0.5.2** · Windows 10/11 x64 · .NET 8 · MIT
+**PortSentinel 0.5.3** · Windows 10/11 x64 · .NET 8 · MIT
