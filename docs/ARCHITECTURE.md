@@ -1,105 +1,95 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.5.3 разделяет telemetry pipeline на четыре независимых слоя: источник событий, нормализацию capture, долговременный SQLite archive и безопасные операции над архивом.
+PortSentinel 0.5.4 добавляет explainable Connection Health поверх существующего read-only ETW pipeline и SQLite telemetry archive.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV53App / TUI] --> ETW[EtwTelemetryService]
+    UI[PortSentinelV54App / TUI] --> ETW[EtwTelemetryService]
     ETW --> TRACE[TraceEventSession]
     TRACE --> KERNEL[Windows Kernel NetworkTCPIP]
     ETW --> FALLBACK[NetworkSnapshotService]
     FALLBACK --> IPH[Windows IP Helper API]
     UI --> ARCHIVE[TelemetryArchiveService]
     ARCHIVE --> DB[(SQLite telemetry_captures / telemetry_events)]
-    UI --> OPS[TelemetryArchiveOperationsService]
-    OPS --> DB
-    OPS --> SEARCH[Parameterized Search]
-    OPS --> COMPARE[Selective Comparison]
-    OPS --> RETENTION[Preview + Transactional Retention]
-    UI --> V52[PortSentinelV52App]
-    V52 --> V51[PortSentinelV51App]
-    V51 --> V5[PortSentinelV5App]
-    V5 --> V4[PortSentinelV4App]
+    UI --> HEALTH[ConnectionHealthService]
+    HEALTH --> LIVE[Live Capture Report]
+    HEALTH --> SAVED[Archived Capture Report]
+    HEALTH --> REPORTS[JSON / Markdown]
+    UI --> V53[PortSentinelV53App]
+    V53 --> OPS[Search / Comparison / Retention]
 ```
 
-## Capture backend
+## ETW lifecycle coverage
 
-`EtwTelemetryService` остаётся владельцем read-only capture и поддерживает kernel ETW TCP IPv4 lifecycle events с автоматическим snapshot fallback через Windows IP Helper API.
+`EtwTelemetryService` подписывается на:
 
-В v0.5.3 UI передаёт сервису один из ограниченных profiles: 5, 15, 30 или 60 секунд. Capture backend не знает о persistence и не выполняет SQL.
+- `TcpIpConnect`;
+- `TcpIpAccept`;
+- `TcpIpDisconnect`;
+- `TcpIpRetransmit`;
+- `TcpIpReconnect`;
+- `TcpIpFail`.
 
-## Telemetry archive
+Connect, accept, disconnect, retransmit и reconnect нормализуются с process/endpoints. `TcpIpFailTraceData` предоставляет protocol и numeric failure code, но не endpoint. Поэтому FAIL event хранится без endpoint и с исходным numeric evidence.
 
-`TelemetryArchiveService` отвечает только за основную запись и чтение archive:
+PortSentinel не назначает undocumented failure codes человеческим значениям. Mapping может быть добавлен только при наличии authoritative таблицы.
 
-1. вставляет capture header;
-2. вставляет нормализованные event records;
-3. сохраняет lifecycle fingerprint;
-4. фиксирует capture и events одной транзакцией;
-5. экспортирует captures и comparisons в JSON/Markdown.
+## Connection Health analyzer
 
-Существующие `sessions`, `session_entries`, `baselines` и `baseline_entries` не изменяются.
+`ConnectionHealthService` не управляет ETW и не изменяет archive. Он получает `EtwCaptureResult` или `TelemetryCapture` и применяет deterministic rules:
 
-## Archive operations
+1. `PS-HEALTH-001` — kernel TCP fail events;
+2. `PS-HEALTH-002` — три и более retransmits для process/remote endpoint;
+3. `PS-HEALTH-003` — два и более reconnects для process/remote endpoint;
+4. `PS-HEALTH-004` — шесть и более connects для process/remote endpoint;
+5. `PS-HEALTH-005` — disconnect без connect/reconnect внутри capture window;
+6. `PS-HEALTH-006` — limitation SnapshotFallback.
 
-`TelemetryArchiveOperationsService` добавляет read/query/maintenance сценарии поверх существующей схемы.
+Каждый finding содержит severity, confidence, evidence, limitation, process, remote endpoint и count.
 
-### Search
+## Health score
 
-Поиск выполняется через параметры SQLite. Пользовательский текст не конкатенируется с SQL. Query может ограничивать:
+Score начинается со 100 и получает bounded penalty:
 
-- process name;
-- local или remote IP address;
-- diagnostic note;
-- event kind;
-- backend mode.
+- High: −25;
+- Medium: −12;
+- Low: −5;
+- Info: 0.
 
-Результаты ограничены максимум 500 последними matching events.
+Результат ограничен диапазоном 0–100:
 
-### Selective comparison
+- 90–100 — Stable;
+- 70–89 — Observe;
+- 40–69 — Degraded;
+- 0–39 — Critical.
 
-Пользователь выбирает две записи из последних 50 captures. Сервис загружает обе через `TelemetryArchiveService`, определяет older/newer по timestamp и применяет тот же lifecycle fingerprint:
+Score является UI summary и не формирует malware, ownership или security verdict.
 
-- event kind;
-- protocol;
-- local endpoint;
-- remote endpoint;
-- process name;
-- PID исключён.
+## Capture boundaries
 
-Comparison является диагностическим diff и не формирует threat verdict.
+ETW capture ограничен выбранным окном. Disconnect может относиться к соединению, созданному до начала наблюдения. Отсутствие findings не доказывает здоровье системы за пределами capture window.
 
-### Retention
+В SnapshotFallback отсутствуют kernel fail/reconnect/retransmit events, поэтому analyzer добавляет явное limitation вместо ложного вывода.
 
-Retention построен как двухэтапная операция:
+## Archive compatibility
 
-1. `PreviewRetentionAsync` рассчитывает число captures/events для удаления и крайнюю дату;
-2. UI требует явное подтверждение `Y`;
-3. `ApplyRetentionAsync` удаляет старые capture headers в транзакции;
-4. связанные events удаляются через `ON DELETE CASCADE`;
-5. сохраняются последние 25, 50, 100 или 250 records.
+Новые event kinds сохраняются существующим `TelemetryArchiveService` без изменения схемы: `kind`, `protocol`, `note` и endpoints уже являются универсальными полями. FAIL records используют пустые endpoints, которые UI показывает как `—`.
 
-Retention не удаляет обычные sessions, baselines или файлы reports.
-
-## TUI composition
-
-`PortSentinelV53App` предоставляет:
-
-- Capture Profiles;
-- Archive Search;
-- Selective Comparison;
-- Retention Center;
-- вложенный Telemetry Archive v0.5.2.
-
-Предыдущие панели сохраняются как вложенные уровни, поэтому v0.5.3 не удаляет ETW capability, Application Watch, DNS correlation, process tree, sessions, baseline, rules или Network Tools.
+Существующие sessions, baselines, archive records и exports остаются совместимыми.
 
 ## Privacy boundary
 
-В archive сохраняются только timestamps, event kinds, process metadata, endpoints и backend limitations. PortSentinel не собирает и не сохраняет packet payload, HTTP body, cookies, credentials, tokens или decrypted TLS content.
+PortSentinel работает только с network metadata. Он не собирает и не сохраняет:
+
+- packet payload;
+- HTTP body;
+- cookies или credentials;
+- tokens;
+- decrypted TLS content.
 
 ## Зависимости
 
 - `.NET 8 / net8.0-windows`;
-- `Microsoft.Data.Sqlite` для archive и parameterized operations;
 - `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser;
+- `Microsoft.Data.Sqlite` для local archive;
 - Windows IP Helper API и Toolhelp32 через P/Invoke.

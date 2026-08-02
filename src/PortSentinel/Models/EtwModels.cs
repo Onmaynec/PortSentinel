@@ -27,16 +27,17 @@ internal sealed record EtwNetworkEvent(
 {
     public string LocalEndpoint => FormatEndpoint(LocalAddress, LocalPort);
 
-    public string RemoteEndpoint => string.IsNullOrWhiteSpace(RemoteAddress)
-        ? "—"
-        : FormatEndpoint(RemoteAddress, RemotePort);
+    public string RemoteEndpoint => FormatEndpoint(RemoteAddress, RemotePort);
 
     private static string FormatEndpoint(string address, int port)
     {
+        if (string.IsNullOrWhiteSpace(address) || address == "—")
+            return "—";
+
         string formatted = address.Contains(':', StringComparison.Ordinal)
             ? $"[{address}]"
             : address;
-        return $"{formatted}:{port}";
+        return port > 0 ? $"{formatted}:{port}" : formatted;
     }
 }
 

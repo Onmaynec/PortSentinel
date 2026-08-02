@@ -1,35 +1,31 @@
-# PortSentinel 0.5.3 — Archive Operations
+# PortSentinel 0.5.4 — Connection Health
 
-Версия 0.5.3 добавляет управляемые capture profiles и полноценные операции над локальным telemetry archive: поиск, выбор произвольной пары для comparison и безопасную retention-очистку.
+Версия 0.5.4 расширяет kernel ETW capture событиями fail/reconnect и добавляет объяснимую диагностику качества соединений для live и архивных captures.
 
 ## Главное
 
-- новая панель **Archive Operations**;
-- capture profiles на 5, 15, 30 и 60 секунд;
-- автоматическое архивирование результата каждого profile capture;
-- поиск по process name, local/remote IP и diagnostic notes;
-- preset-фильтры для retransmit, disconnect, fallback и listener events;
-- selective comparison любой пары из последних 50 captures;
-- Archive Status с количеством captures/events, диапазоном дат и размером базы;
-- retention policies: сохранить последние 25, 50, 100 или 250 captures;
-- обязательный dry-run preview до удаления;
-- удаление только после явного подтверждения клавишей `Y`;
-- полный Telemetry Archive v0.5.2 сохранён внутри новой панели.
+- новая панель **Connection Health**;
+- kernel TCP `FAIL` и `RECONNECT` events через TraceEvent;
+- сохранение protocol и numeric failure code как evidence;
+- 15-секундный Capture & Health с автоматическим архивированием;
+- анализ последней или выбранной capture-сессии;
+- findings для kernel failures, retransmit bursts, reconnect loops и rapid repeated connects;
+- capture-boundary indicator для disconnect без connect внутри окна;
+- health score 0–100: Stable, Observe, Degraded или Critical;
+- подробные evidence, confidence и limitations;
+- JSON и Markdown health reports;
+- полный Archive Operations v0.5.3 сохранён внутри новой панели.
 
-## Retention safety
+## Модель доверия
 
-Retention удаляет только старые строки `telemetry_captures`. Связанные `telemetry_events` очищаются каскадно внутри транзакции. Таблицы sessions, baselines и сохранённые reports не изменяются.
+PortSentinel не расшифровывает numeric kernel failure codes предположениями: исходный code и protocol сохраняются в evidence. Retransmits, reconnects и repeated connects могут иметь штатные причины, поэтому каждый finding содержит limitation.
 
-## Search and comparison
-
-Поиск использует параметризованные SQLite queries. Selective comparison применяет тот же lifecycle fingerprint без PID, который появился в v0.5.2. Результат является диагностическим diff и не формирует malware или threat verdict.
+Health score является удобным diagnostic summary и не считается malware, ownership или security verdict.
 
 ## Privacy boundary
 
-PortSentinel по-прежнему не собирает packet payload, HTTP body, cookies, credentials, tokens или расшифрованное TLS-содержимое.
+Packet payload, HTTP body, cookies, credentials, tokens и расшифрованное TLS-содержимое не собираются и не сохраняются.
 
 ## Скачать
 
-Используйте `PortSentinel-0.5.3-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
-
-Полностью распакуйте архив перед запуском.
+Используйте `PortSentinel-0.5.4-win-x64.zip` и проверьте файл `.sha256`. Полностью распакуйте архив перед запуском.
