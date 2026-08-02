@@ -7,13 +7,13 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.5.1";
+    public const string Version = "0.5.2";
 
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        Console.Title = $"PortSentinel {Version} — ETW Telemetry";
+        Console.Title = $"PortSentinel {Version} — Telemetry Archive";
 
         if (!OperatingSystem.IsWindows())
         {
@@ -76,10 +76,16 @@ internal static class Program
                 new SessionComparisonService(store),
                 new ApplicationWatchService(store, dns),
                 v4Panel);
-            var app = new PortSentinelV51App(
+            var etw = new EtwTelemetryService(network, store.ReportsDirectory);
+            var v51Panel = new PortSentinelV51App(
                 terminal,
-                new EtwTelemetryService(network, store.ReportsDirectory),
+                etw,
                 v5Panel);
+            var app = new PortSentinelV52App(
+                terminal,
+                etw,
+                new TelemetryArchiveService(store.DatabasePath, store.ReportsDirectory),
+                v51Panel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -104,7 +110,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
-        Console.WriteLine("v0.5.1: read-only kernel ETW network events с безопасным snapshot fallback.");
+        Console.WriteLine("v0.5.2: SQLite telemetry archive, capture history и lifecycle comparison.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");

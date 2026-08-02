@@ -43,15 +43,27 @@
 - автоматический snapshot fallback;
 - явная privacy boundary без packet payload.
 
+## ✅ `0.5.2` — Telemetry Archive
+
+- persistence ETW и fallback captures в SQLite;
+- транзакционное сохранение capture headers и events;
+- Telemetry History;
+- просмотр и export сохранённых событий;
+- lifecycle fingerprint без PID;
+- comparison двух последних captures;
+- JSON/Markdown telemetry diff;
+- backward-compatible schema extension.
+
 ## `0.5.x` — Telemetry Stabilization
 
 - IPv6 и UDP provider coverage;
-- persistence ETW/timeline events в SQLite;
 - connection failures и timeout classification;
 - выбор длительности capture;
 - installer watch preset;
+- выбор произвольных captures для comparison;
+- retention и очистка старых archive records;
 - фильтры и pagination больших timeline;
-- unit/integration tests для ETW mapping, trackers, DNS и process tree;
+- unit/integration tests для ETW mapping, archive, trackers, DNS и process tree;
 - обработка simultaneous kernel logger conflicts.
 
 ## `0.6.0` — Managed Firewall
