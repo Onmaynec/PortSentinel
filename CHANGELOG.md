@@ -2,6 +2,27 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.1] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель ETW Telemetry;
+- read-only kernel ETW backend на базе `Microsoft.Diagnostics.Tracing.TraceEvent`;
+- TCP IPv4 события connect, accept, disconnect и retransmit;
+- 12-секундное окно capture с просмотром event metadata;
+- capability probe для Windows elevation и управления kernel session;
+- автоматический snapshot fallback через Windows IP Helper API;
+- экспорт ETW capture в JSON schema v1 и Markdown;
+- отдельные статусы backend, fallback reason и privacy boundary.
+
+### Безопасность и ограничения
+
+- PortSentinel не включает packet capture и не сохраняет payload;
+- HTTP body, cookies, tokens и decrypted TLS content не собираются;
+- управление kernel ETW обычно требует запуска от администратора;
+- при недостаточных правах, конфликте системной сессии или другой ошибке используется snapshot fallback;
+- первый ETW vertical slice обрабатывает TCP IPv4; IPv6/UDP provider coverage перенесено в 0.5.x.
+
 ## [0.5.0] — 2026-08-02
 
 ### Добавлено
