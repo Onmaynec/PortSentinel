@@ -2,6 +2,29 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.2] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель Telemetry Archive;
+- автоматическое сохранение ETW и snapshot fallback captures в SQLite;
+- таблицы `telemetry_captures` и `telemetry_events`;
+- транзакционное сохранение capture header и всех event records;
+- Telemetry History для 100 последних capture-сессий;
+- просмотр сохранённых event metadata;
+- JSON schema v1 и Markdown export архивных captures;
+- сравнение двух последних captures по lifecycle fingerprint без PID;
+- отображение новых событий и исчезнувших fingerprints;
+- JSON/Markdown export telemetry comparison;
+- полный ETW Control Center v0.5.1 сохранён во вложенной панели.
+
+### Совместимость и приватность
+
+- новые таблицы создаются через `CREATE TABLE IF NOT EXISTS`;
+- существующие sessions, baselines и reports не изменяются;
+- lifecycle fingerprint является диагностикой и не формирует threat verdict;
+- packet payload, HTTP body, cookies, credentials, tokens и decrypted TLS content не сохраняются.
+
 ## [0.5.1] — 2026-08-02
 
 ### Добавлено
