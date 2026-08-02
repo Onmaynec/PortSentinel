@@ -2,6 +2,30 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.6] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель Timeline Explorer;
+- server-side pagination capture index и event timeline через SQLite `LIMIT/OFFSET`;
+- динамический page size на основе высоты терминала;
+- навигация PageUp/PageDown и Home/End;
+- preset-фильтры event kind и protocol family;
+- параметризованный text search по process name, IP addresses, ports и diagnostic note;
+- переход к точному event sequence с вычислением страницы без полной загрузки capture;
+- JSON schema v1 и Markdown export только текущей SQL-page;
+- backward-compatible индексы по capture/sequence, capture/kind и capture/protocol;
+- полный Network Coverage v0.5.5 сохранён во вложенной панели.
+
+### Масштабирование и безопасность
+
+- Timeline Explorer не загружает все events capture в память;
+- пользовательский search text передаётся SQLite только через parameters;
+- `%`, `_` и `\\` экранируются как literal LIKE characters;
+- page export явно содержит только текущий отображаемый диапазон;
+- таблицы и существующие archive records не изменяются;
+- packet payload, HTTP body, credentials, tokens и decrypted TLS content не сохраняются.
+
 ## [0.5.5] — 2026-08-02
 
 ### Добавлено
