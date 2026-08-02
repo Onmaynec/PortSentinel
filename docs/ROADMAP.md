@@ -14,26 +14,27 @@
 - `0.5.4` — Connection Health: fail/reconnect metadata, explainable findings и score.
 - `0.5.5` — Network Coverage: TCP6, UDP4/UDP6, protocol matrix и corrected port handling.
 - `0.5.6` — Timeline Explorer: server-side pagination, filters, sequence jump и page exports.
+- `0.5.7` — Installer Watch: guided baseline/watch captures и explainable before/after reports.
 
-## ✅ `0.5.7` — Installer Watch
+## ✅ `0.5.8` — ETW Session Guard
 
-- Standard Watch: baseline 8 секунд + watch 30 секунд;
-- Deep Watch: baseline 10 секунд + watch 60 секунд;
-- ручная точка старта installer EXE;
-- автоматическое архивирование обеих captures;
-- optional process hint без attribution verdict;
-- PID-независимые before/after fingerprints;
-- process candidates, endpoints, protocol counts и failure signals;
-- latest-pair analysis;
-- JSON/Markdown reports;
-- explicit background, child-process, bounded-window и fallback limitations.
+- preflight inventory активных ETW session names;
+- ownership boundary `PortSentinel-*` / foreign;
+- guarded 15-second capture с SQLite persistence;
+- attempt, backend, fallback, native-code и session-count diagnostics;
+- best-effort failure classification;
+- bounded retry только при вероятном name collision;
+- JSON/Markdown inventory и diagnostics reports;
+- dry-run cleanup собственных orphan sessions;
+- обязательное подтверждение `Y`;
+- foreign sessions никогда не изменяются.
 
 ## `0.5.x` — Telemetry Stabilization
 
-- unit/integration tests для ETW mapping, coverage, health, archive, timeline и installer watch;
-- обработка simultaneous kernel logger conflicts;
+- unit/integration tests для ETW mapping, session guard, coverage, health, archive, timeline и installer watch;
 - документированная mapping table известных failure codes только при наличии authoritative источника;
-- regression fixtures для SQLite schema и report serialization.
+- regression fixtures для SQLite schema и report serialization;
+- deterministic fixtures для snapshot fallback и report exports.
 
 ## `0.6.0` — Managed Firewall
 
@@ -58,8 +59,9 @@
 2. Обновить версию в `.csproj`, `VERSION`, README и CHANGELOG.
 3. Обновить `RELEASE_NOTES.md`.
 4. Проверить PR через workflow **Build**.
-5. Последним изменить `VERSION` и слить release PR.
+5. Слить release PR в `main`.
 6. Workflow **Release** создаст ZIP, SHA-256, тег и Release.
-7. Проверить обновление из предыдущей версии через **Update Center**.
+7. Проверить тег, release assets и обновление из предыдущей версии.
+8. Удалить слитую release-ветку.
 
 Подробности: [`UPDATES.md`](UPDATES.md).
