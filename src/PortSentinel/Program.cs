@@ -7,13 +7,13 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.4.0";
+    public const string Version = "0.5.0";
 
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        Console.Title = $"PortSentinel {Version} — Explainable Rules";
+        Console.Title = $"PortSentinel {Version} — Extended Telemetry";
 
         if (!OperatingSystem.IsWindows())
         {
@@ -54,18 +54,28 @@ internal static class Program
         {
             var network = new NetworkSnapshotService();
             var store = new SessionStore();
+            var dns = new DnsCorrelationService();
             var legacyPanel = new PortSentinelApp(
                 terminal,
                 network,
                 new ProcessMetadataService(),
                 updater);
-            var app = new PortSentinelV4App(
+            var v4Panel = new PortSentinelV4App(
                 terminal,
                 network,
                 store,
                 new BaselineFingerprintService(store),
                 new RuleEngine(new ProcessSecurityService()),
                 legacyPanel);
+            var app = new PortSentinelV5App(
+                terminal,
+                network,
+                store,
+                dns,
+                new ProcessTreeService(),
+                new SessionComparisonService(store),
+                new ApplicationWatchService(store, dns),
+                v4Panel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -90,7 +100,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
-        Console.WriteLine("v0.4.0: стабильные baseline fingerprints, explainable rules, Authenticode и SHA-256.");
+        Console.WriteLine("v0.5.0: Application Watch, DNS correlation, process tree и session comparison.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");
