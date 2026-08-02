@@ -143,14 +143,14 @@ internal sealed class EtwTelemetryService
         void Add(
             string kind,
             int processId,
-            int sourceAddress,
+            IPAddress sourceAddress,
             int sourcePort,
-            int destinationAddress,
+            IPAddress destinationAddress,
             int destinationPort,
             bool inbound = false)
         {
-            string source = FormatIpv4(sourceAddress);
-            string destination = FormatIpv4(destinationAddress);
+            string source = sourceAddress.ToString();
+            string destination = destinationAddress.ToString();
             int sourcePortValue = FormatPort(sourcePort);
             int destinationPortValue = FormatPort(destinationPort);
 
@@ -291,9 +291,6 @@ internal sealed class EtwTelemetryService
             return $"pid-{processId}";
         }
     }
-
-    private static string FormatIpv4(int value) =>
-        new IPAddress(BitConverter.GetBytes(value)).ToString();
 
     private static int FormatPort(int value)
     {
