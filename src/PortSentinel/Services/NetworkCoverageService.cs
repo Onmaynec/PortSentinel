@@ -180,8 +180,9 @@ internal sealed class NetworkCoverageService
             "Packet payload, HTTP body and decrypted TLS content are outside the collection boundary."
         };
 
-        if (events.Any(item => item.Kind is "UDP_SEND" or "UDP_RECV" &&
-                               (item.LocalPort == 0 || item.RemotePort == 0)))
+        if (events.Any(item =>
+                (item.Kind is "UDP_SEND" or "UDP_RECV") &&
+                (item.LocalPort == 0 || item.RemotePort == 0)))
         {
             limitations.Add(
                 "Kernel UDP callbacks can omit source-port metadata; unavailable ports are represented as 0.");
