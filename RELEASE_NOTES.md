@@ -1,25 +1,29 @@
-# PortSentinel 0.4.0 — Explainable Rules
+# PortSentinel 0.5.0 — Extended Telemetry
 
-Версия 0.4.0 превращает baseline deviations в объяснимый rule engine с локальным enrichment executable.
+Версия 0.5.0 добавляет наблюдение за жизненным циклом сетевой активности без перехвата payload и без обязательных прав администратора.
 
 ## Главное
 
-- новый экран **Explainable Rules**;
-- стабильные baseline fingerprints без зависимости от PID;
-- правило нового listener относительно профиля `default`;
-- правило wildcard listener;
-- правило сетевого executable без Authenticode;
-- правило активности из Temp или Downloads;
-- severity, confidence, evidence и limitation для каждого finding;
-- SHA-256 и publisher в карточке executable;
-- сохранены Session History, exports, Network Tools и updater.
+- новая панель **Extended Telemetry**;
+- Application Watch для выбранного сетевого процесса;
+- first seen, last seen, observations и connection cycles;
+- обнаружение повторяющихся reconnect loops;
+- автоматический JSON/Markdown timeline report;
+- reverse DNS correlation для внешних IP с timeout и кэшем;
+- Network Process Tree через Windows Toolhelp32;
+- сравнение двух последних SQLite-сессий;
+- diff endpoints, listeners, внешних соединений и процессов;
+- JSON/Markdown export session diff;
+- полный Control Center v0.4.0 сохранён внутри новой панели.
 
-## Модель доверия
+## Модель данных
 
-PortSentinel показывает наблюдаемые факты и ограничения анализа. Finding не является malware verdict. Отсутствие подписи, wildcard binding или новый listener могут иметь легитимную причину.
+Application Watch использует периодические снимки Windows TCP/UDP tables. PortSentinel не сохраняет payload, HTTP body, cookies, токены или расшифрованное TLS-содержимое.
+
+DNS и reconnect findings являются диагностическими metadata, а не malware verdict. ETW backend запланирован для ветки 0.5.x после стабилизации snapshot timeline.
 
 ## Скачать
 
-Используйте `PortSentinel-0.4.0-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
+Используйте `PortSentinel-0.5.0-win-x64.zip`. Файл `.sha256` содержит контрольную сумму архива.
 
 Полностью распакуйте архив перед запуском.

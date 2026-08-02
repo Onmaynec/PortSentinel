@@ -2,6 +2,30 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.0] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель Extended Telemetry;
+- Application Watch для выбранного сетевого процесса;
+- timeline first seen / last seen и число наблюдений endpoint;
+- подсчёт connection cycles и выделение reconnect loops;
+- автоматический экспорт Application Watch в JSON и Markdown;
+- best-effort reverse DNS correlation с timeout, ограничением параллелизма и локальным кэшем;
+- Network Process Tree через Windows Toolhelp32 API;
+- отображение родительских процессов для процессов с сетевой активностью;
+- сравнение двух последних сохранённых сессий по стабильному fingerprint;
+- diff новых/исчезнувших endpoints и процессов;
+- экспорт session diff в JSON и Markdown;
+- все возможности v0.4.0 сохранены в отдельном Control Center.
+
+### Безопасность и ограничения
+
+- DNS correlation не считается доказательством владельца трафика;
+- Application Watch использует периодические Windows network snapshots и не перехватывает payload;
+- reconnect loop определяется по повторным появлениям одинакового process/remote endpoint;
+- ETW backend перенесён в стабилизационную ветку 0.5.x и не требуется для запуска v0.5.0.
+
 ## [0.4.0] — 2026-08-01
 
 ### Добавлено
