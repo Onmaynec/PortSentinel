@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="assets/logo.svg" width="820" alt="PortSentinel">
-
 # PortSentinel 🛡️
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](docs/COMPATIBILITY.md)
