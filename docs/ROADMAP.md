@@ -2,83 +2,46 @@
 
 Каждая версия выпускается по одной схеме: рабочий vertical slice → Windows x64 Build → portable ZIP → SHA-256 → GitHub Release → поддержка встроенного updater.
 
-## ✅ `0.2.0` — Network Control Center
+## ✅ Выпущенные vertical slices
 
-- self-contained Windows executable;
-- полноэкранная TUI;
-- TCP/UDP IPv4/IPv6 через Windows IP Helper API;
-- process mapping, listeners, connections, Quick Scan и updater.
+- `0.2.0` — Network Control Center: Windows TUI, TCP/UDP IPv4/IPv6 snapshots, process mapping и updater.
+- `0.3.0` — Sessions & Reports: SQLite, history, exports и baselines.
+- `0.4.0` — Explainable Rules: stable fingerprints, evidence, confidence, Authenticode и SHA-256.
+- `0.5.0` — Extended Telemetry: Application Watch, DNS correlation, process tree и session comparison.
+- `0.5.1` — ETW Telemetry: read-only kernel TCP lifecycle events и snapshot fallback.
+- `0.5.2` — Telemetry Archive: persistence, history, event viewer и capture comparison.
+- `0.5.3` — Archive Operations: capture profiles, search, selective comparison и retention preview.
+- `0.5.4` — Connection Health: fail/reconnect metadata, explainable findings и score.
+- `0.5.5` — Network Coverage: TCP6, UDP4/UDP6, protocol matrix и corrected port handling.
+- `0.5.6` — Timeline Explorer: server-side pagination, filters, sequence jump и page exports.
 
-## ✅ `0.3.0` — Sessions & Reports
+## ✅ `0.5.7` — Installer Watch
 
-- SQLite session storage и WAL;
-- Live Session Recorder, history, exports и baseline.
-
-## ✅ `0.4.0` — Explainable Rules
-
-- стабильный fingerprint без PID;
-- deterministic rules, evidence, confidence и limitations;
-- Authenticode и SHA-256 enrichment.
-
-## ✅ `0.5.0` — Extended Telemetry
-
-- Application Watch, DNS correlation, process tree и session comparison.
-
-## ✅ `0.5.1` — ETW Telemetry
-
-- read-only kernel ETW TCP IPv4 lifecycle events;
-- capability probe, bounded capture, reports и snapshot fallback.
-
-## ✅ `0.5.2` — Telemetry Archive
-
-- SQLite persistence, history, event viewer и lifecycle comparison.
-
-## ✅ `0.5.3` — Archive Operations
-
-- capture profiles, parameterized search, selective comparison и retention preview.
-
-## ✅ `0.5.4` — Connection Health
-
-- kernel fail/reconnect events;
-- explainable health findings и score;
-- live/archive reports.
-
-## ✅ `0.5.5` — Network Coverage
-
-- TCP IPv6 connect/accept/disconnect/retransmit/reconnect callbacks;
-- UDP IPv4/IPv6 send/receive callbacks;
-- normalized `TCP4`, `TCP6`, `UDP4`, `UDP6` families;
-- live/latest/archive coverage reports;
-- protocol matrix, IP-family distribution и top endpoints;
-- JSON/Markdown exports;
-- corrected ETW port byte-order handling;
-- explicit UDP source-port и bounded-window limitations.
-
-## ✅ `0.5.6` — Timeline Explorer
-
-- server-side pagination capture index и event timeline;
-- dynamic page size, PageUp/PageDown и Home/End navigation;
-- kind/protocol presets;
-- parameterized search по process, addresses, ports и note;
-- sequence jump с вычислением page/index;
-- JSON/Markdown export текущей SQL-page;
-- indexes по capture/sequence, capture/kind и capture/protocol;
-- просмотр больших captures без полной materialization.
+- Standard Watch: baseline 8 секунд + watch 30 секунд;
+- Deep Watch: baseline 10 секунд + watch 60 секунд;
+- ручная точка старта installer EXE;
+- автоматическое архивирование обеих captures;
+- optional process hint без attribution verdict;
+- PID-независимые before/after fingerprints;
+- process candidates, endpoints, protocol counts и failure signals;
+- latest-pair analysis;
+- JSON/Markdown reports;
+- explicit background, child-process, bounded-window и fallback limitations.
 
 ## `0.5.x` — Telemetry Stabilization
 
-- installer watch preset;
-- unit/integration tests для ETW mapping, coverage, health, archive, timeline, trackers, DNS и process tree;
+- unit/integration tests для ETW mapping, coverage, health, archive, timeline и installer watch;
 - обработка simultaneous kernel logger conflicts;
-- документированная mapping table для известных failure codes только при наличии authoritative источника.
+- документированная mapping table известных failure codes только при наличии authoritative источника;
+- regression fixtures для SQLite schema и report serialization.
 
 ## `0.6.0` — Managed Firewall
 
-- read-only Firewall correlation;
+- read-only Windows Firewall correlation;
 - изменение только PortSentinel-managed rules;
 - plan, dry-run и явное подтверждение;
 - transaction journal и rollback;
-- защита от удаления сторонних правил.
+- защита сторонних правил от изменения или удаления.
 
 ## `1.0.0` — стабильный продукт
 

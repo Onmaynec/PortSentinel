@@ -1,114 +1,115 @@
 # 🏗️ Архитектура PortSentinel
 
-PortSentinel 0.5.6 добавляет paged query layer поверх существующего read-only ETW pipeline и SQLite telemetry archive. Timeline Explorer читает только текущую страницу capture index или event timeline.
+PortSentinel 0.5.7 добавляет guided Installer Watch поверх существующего read-only ETW pipeline, SQLite archive и Timeline Explorer. Новый слой не запускает installer EXE и не изменяет систему.
 
 ```mermaid
 flowchart LR
-    UI[PortSentinelV56App / TUI] --> TIMELINE[TimelineExplorerService]
-    TIMELINE --> COUNT[COUNT queries]
-    TIMELINE --> PAGE[LIMIT / OFFSET pages]
-    TIMELINE --> FILTERS[Parameterized filters]
-    TIMELINE --> DB[(SQLite telemetry_captures / telemetry_events)]
-    TIMELINE --> REPORTS[Current-page JSON / Markdown]
-    UI --> V55[PortSentinelV55App]
-    V55 --> ETW[EtwTelemetryService]
-    ETW --> TRACE[TraceEventSession]
-    TRACE --> KERNEL[Windows Kernel NetworkTCPIP]
-    ETW --> FALLBACK[NetworkSnapshotService]
-    FALLBACK --> IPH[Windows IP Helper API]
-    V55 --> COVERAGE[NetworkCoverageService]
+    UI[PortSentinelV57App / TUI] --> ETW[EtwTelemetryService]
+    UI --> ARCHIVE[TelemetryArchiveService]
+    ETW --> BASELINE[Baseline Capture]
+    ETW --> WATCH[Watch Capture]
+    BASELINE --> ARCHIVE
+    WATCH --> ARCHIVE
+    ARCHIVE --> DB[(SQLite telemetry_captures / telemetry_events)]
+    UI --> ANALYZER[InstallerWatchService]
+    ANALYZER --> DIFF[PID-independent Fingerprint Diff]
+    ANALYZER --> PROCESS[Process Candidates]
+    ANALYZER --> REPORTS[JSON / Markdown]
+    UI --> V56[PortSentinelV56App]
+    V56 --> TIMELINE[TimelineExplorerService]
 ```
 
-## Timeline query layer
+## Guided workflow
 
-`TimelineExplorerService` не запускает capture и не изменяет сохранённые events. Он работает поверх существующих таблиц.
+`PortSentinelV57App` реализует два профиля:
 
-### Capture index
+- Standard Watch: baseline 8 секунд и watch 30 секунд;
+- Deep Watch: baseline 10 секунд и watch 60 секунд.
 
-1. `COUNT(*)` определяет общее число captures;
-2. page number ограничивается реальным диапазоном;
-3. header records читаются через `ORDER BY id DESC LIMIT $limit OFFSET $offset`;
-4. UI получает только одну `TimelineCapturePage`.
+Порядок выполнения:
 
-### Event timeline
+1. пользователь записывает baseline без установщика;
+2. baseline немедленно сохраняется через `TelemetryArchiveService`;
+3. PortSentinel останавливается в ручной checkpoint;
+4. пользователь самостоятельно запускает installer EXE;
+5. после Enter начинается watch capture;
+6. watch capture сохраняется в ту же SQLite schema;
+7. `InstallerWatchService` строит before/after report.
 
-1. фильтры нормализуются;
-2. отдельный count query определяет число matching events;
-3. SQLite применяет filter до materialization;
-4. текущая page читается по `sequence, id`;
-5. UI получает `TimelineEventPage`, а не полный `TelemetryCapture`.
+PortSentinel не получает путь к установщику, не вызывает `Process.Start` и не выполняет package-manager commands.
 
-Page size ограничен диапазоном 10–200 и в TUI подстраивается под высоту терминала.
+## Fingerprint comparison
 
-## Filters
+Analyzer строит baseline set и выбирает watch events, fingerprint которых ранее не наблюдался.
 
-Поддерживаются независимые ограничения:
+Для outbound metadata fingerprint включает:
 
-- exact event `kind`;
-- exact `protocol` family;
-- text search по process name;
-- local/remote address;
-- local/remote port;
-- diagnostic note.
+- event kind;
+- protocol family;
+- normalized process name;
+- remote address;
+- remote port.
 
-Kind и protocol берутся только из фиксированных UI presets. Text search передаётся через `$search`. Символы `\\`, `%` и `_` экранируются для literal `LIKE` matching.
+PID и outbound local ephemeral port исключаются, чтобы process restart или новый временный port не создавали ожидаемый шум.
 
-SQL identifiers и clauses не строятся из пользовательского ввода.
+Для `LISTENER` и `ACCEPT` дополнительно сохраняются local address и local port, потому что binding является значимой частью наблюдения.
 
-## Sequence jump
+Added events дедуплицируются по fingerprint и сортируются так, чтобы process-hint matches отображались первыми.
 
-`FindSequenceAsync` сначала проверяет, что target event соответствует активному filter. Затем count query с `sequence <= $sequence` вычисляет ordinal matching row:
+## Process candidates
 
-```text
-page  = ((row - 1) / pageSize) + 1
-index = (row - 1) % pageSize
-```
+Новые events группируются по normalized process name. Для каждого кандидата рассчитываются:
 
-Полный capture для перехода не загружается.
+- added event count;
+- unique remote endpoints;
+- TCP event count;
+- UDP event count;
+- число `FAIL`, `RETRANSMIT` и `RECONNECT` signals;
+- совпадение с optional process hint.
 
-## Page export
+Process hint используется только для prioritization. Он не изменяет fingerprints, не скрывает остальные processes и не создаёт attribution verdict.
 
-`ExportPageAsync` получает уже отображаемый `TimelineEventPage` и сохраняет только его items. JSON и Markdown содержат:
+## Archive compatibility
 
-- capture ID;
-- page/page size;
-- first/last row;
-- total matching events;
-- активный filter;
-- event metadata;
-- privacy boundary.
+Версия 0.5.7 не добавляет таблицы или columns. Baseline и watch являются обычными `telemetry_captures`, а events записываются в существующую `telemetry_events`.
 
-Экспорт не выполняет скрытый full-archive query.
+Это позволяет:
 
-## SQLite indexes
+- открыть обе captures в Timeline Explorer;
+- повторно построить report через Latest Pair;
+- применять archive search и retention;
+- сохранить backward compatibility с предыдущими records.
 
-Версия 0.5.6 создаёт индексы через `CREATE INDEX IF NOT EXISTS`:
+## Reports
 
-- `telemetry_events(capture_id, sequence)`;
-- `telemetry_events(capture_id, kind, sequence)`;
-- `telemetry_events(capture_id, protocol, sequence)`.
+`InstallerWatchService.ExportAsync` создаёт:
 
-Таблицы, columns и existing records не мигрируются. Индексы совместимы с предыдущими версиями.
+- JSON schema v1 с capture IDs, backends, process candidates, added events и limitations;
+- Markdown report с process table и added network metadata.
 
-## Existing telemetry pipeline
+Reports сохраняются в существующий `%LocalAppData%\PortSentinel\reports`.
 
-Вложенный `PortSentinelV55App` сохраняет весь функционал Network Coverage:
+## Trust boundaries
 
-- TCP4/TCP6 lifecycle callbacks;
-- UDP4/UDP6 send/receive callbacks;
-- snapshot fallback;
-- SQLite archive;
+Installer Watch всегда сообщает следующие ограничения:
+
+- baseline и watch являются отдельными bounded captures;
+- промежуток между ними не записывается;
+- background applications, services и scheduled tasks могут создать новые events;
+- installer может делегировать network activity child process, service host, package manager или browser;
+- process-name correlation не доказывает ownership;
+- SnapshotFallback может пропустить short-lived lifecycle events и ordering.
+
+## Existing layers
+
+Вложенный `PortSentinelV56App` сохраняет:
+
+- server-side Timeline Explorer pagination;
+- kind/protocol filters и sequence jump;
+- Network Coverage TCP4/TCP6/UDP4/UDP6;
 - Connection Health;
-- protocol matrix и reports.
-
-Предыдущие Control Centers остаются доступными через вложенные панели.
-
-## Capture boundaries
-
-- capture duration ограничена 3–60 секундами;
-- сохраняется максимум 5000 нормализованных events на capture;
-- SnapshotFallback является point-in-time table;
-- отсутствие события внутри окна не доказывает отсутствие активности вне окна.
+- archive search, comparison и retention;
+- sessions, baseline rules и legacy network tools.
 
 ## Privacy boundary
 
@@ -124,5 +125,5 @@ PortSentinel работает только с network metadata. Он не соб
 
 - `.NET 8 / net8.0-windows`;
 - `Microsoft.Diagnostics.Tracing.TraceEvent` для ETW controller/parser;
-- `Microsoft.Data.Sqlite` для archive и paged queries;
+- `Microsoft.Data.Sqlite` для local archive и timeline queries;
 - Windows IP Helper API и Toolhelp32 через P/Invoke.

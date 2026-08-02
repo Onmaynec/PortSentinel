@@ -1,36 +1,37 @@
 # PortSentinel
 
-**A full-screen Windows TUI for scalable telemetry archives, TCP/UDP ETW metadata, network snapshots, and explainable diagnostics.**
+**A full-screen Windows TUI for ETW metadata, SQLite archives, Installer Watch, and explainable network diagnostics.**
 
-PortSentinel 0.5.6 adds a server-side Timeline Explorer for large archived captures. Capture indexes and event timelines are read in SQLite pages instead of materializing every stored event in memory.
+PortSentinel 0.5.7 adds a guided before/after workflow for observing network metadata while software is installed manually.
 
-## 0.5.6 highlights
+## 0.5.7 highlights
 
-- paged capture index and event timeline using `COUNT(*)`, `LIMIT`, and `OFFSET`;
-- dynamic page size based on terminal height;
-- PageUp/PageDown and Home/End navigation;
-- event-kind and protocol-family presets;
-- parameterized text search across process name, addresses, ports, and diagnostic notes;
-- exact sequence jump with page/index calculation;
-- JSON schema v1 and Markdown export of the currently displayed SQL page;
-- backward-compatible indexes for capture/sequence, capture/kind, and capture/protocol;
-- the complete 0.5.5 Network Coverage panel remains available.
+- Standard Watch: an 8-second baseline followed by a 30-second watch capture;
+- Deep Watch: a 10-second baseline followed by a 60-second watch capture;
+- a manual installer-start checkpoint between captures;
+- automatic SQLite persistence for both captures;
+- an optional process-name hint used only to prioritize candidates;
+- PID-independent comparison of normalized network fingerprints;
+- outbound ephemeral local ports excluded from fingerprints to reduce expected noise;
+- process, endpoint, TCP/UDP, and failure-signal summaries;
+- analysis of the latest archived pair;
+- JSON schema v1 and Markdown reports;
+- the complete 0.5.6 Timeline Explorer remains available.
 
-## Scale and query safety
+## Trust model
 
-Timeline filters are applied by SQLite before events are read. User text is passed through parameters, while `%`, `_`, and `\` are escaped as literal `LIKE` characters. Existing tables and records are not migrated or rewritten.
+PortSentinel does not launch an installer executable or modify the system. A process hint is a display priority, not proof of attribution.
 
-A page export intentionally contains only the visible filtered range. This prevents accidental full-materialization of very large captures.
+New metadata may come from background applications, Windows services, scheduled tasks, child processes, package managers, service hosts, or a browser opened by the installer. Baseline and watch are separate bounded captures, so activity in the gap is not recorded.
 
 ## Existing capabilities
 
+- server-side Timeline Explorer pagination and filters;
 - TCP4/TCP6 and UDP4/UDP6 kernel ETW coverage;
-- Connection Health for fail, reconnect, retransmit, and repeated-connect patterns;
+- Connection Health diagnostics;
 - safe Windows IP Helper API snapshot fallback;
-- capture profiles, archive search, selective comparison, and retention preview;
-- SQLite telemetry and session history;
-- Application Watch and reverse-DNS correlation;
-- process tree, baselines, explainable rules, and SHA-256/Authenticode enrichment;
+- archive search, selective comparison, and retention preview;
+- sessions, baselines, explainable rules, process tree, and reverse DNS;
 - GitHub Releases updater with SHA-256 verification.
 
 ## Privacy boundary
@@ -39,6 +40,6 @@ PortSentinel does not capture or store packet payloads, HTTP bodies, cookies, cr
 
 ## Start
 
-Download `PortSentinel-0.5.6-win-x64.zip`, verify the `.sha256` file, extract it to a writable directory, and run `portsentinel.exe`.
+Download `PortSentinel-0.5.7-win-x64.zip`, verify its `.sha256` file, extract it to a writable directory, and run `portsentinel.exe`.
 
 The Russian [`README.md`](../README.md) is the primary project documentation.
