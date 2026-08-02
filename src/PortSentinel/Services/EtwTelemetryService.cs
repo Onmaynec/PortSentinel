@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
@@ -78,12 +77,19 @@ internal sealed class EtwTelemetryService
         string path = Path.Combine(_reportsDirectory, $"etw-network-{stamp}.{extension}");
         int reconnectCount = capture.Events.Count(item => item.Kind == "RECONNECT");
         int failCount = capture.Events.Count(item => item.Kind == "FAIL");
+        int udpSendCount = capture.Events.Count(item => item.Kind == "UDP_SEND");
+        int udpReceiveCount = capture.Events.Count(item => item.Kind == "UDP_RECV");
+        int ipv6Count = capture.Events.Count(item => IsIpv6(item));
+        var protocolCounts = capture.Events
+            .GroupBy(item => item.Protocol, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
         if (extension == "json")
         {
             var payload = new
             {
-                schemaVersion = 2,
+                schemaVersion = 3,
                 backend = capture.Mode.ToString(),
                 capture.StartedAt,
                 capture.EndedAt,
@@ -95,7 +101,12 @@ internal sealed class EtwTelemetryService
                 capture.RetransmitCount,
                 reconnectCount,
                 failCount,
+                udpSendCount,
+                udpReceiveCount,
+                ipv6Count,
+                protocolCounts,
                 privacy = "No packet payload, HTTP body, cookies, tokens or decrypted TLS content is captured.",
+                udpLimitation = "Kernel UDP callbacks expose destination-port metadata; source port can be unavailable and is stored as 0.",
                 events = capture.Events
             };
             await File.WriteAllTextAsync(path,
@@ -112,9 +123,19 @@ internal sealed class EtwTelemetryService
             .AppendLine($"- **Ended:** {capture.EndedAt:O}")
             .AppendLine($"- **Status:** {Escape(capture.Status)}")
             .AppendLine($"- **Events:** {capture.Events.Count}")
-            .AppendLine($"- **Connect / Accept / Disconnect / Retransmit / Reconnect / Fail:** {capture.ConnectCount} / {capture.AcceptCount} / {capture.DisconnectCount} / {capture.RetransmitCount} / {reconnectCount} / {failCount}")
+            .AppendLine($"- **TCP connect / accept / disconnect / retransmit / reconnect / fail:** {capture.ConnectCount} / {capture.AcceptCount} / {capture.DisconnectCount} / {capture.RetransmitCount} / {reconnectCount} / {failCount}")
+            .AppendLine($"- **UDP send / receive:** {udpSendCount} / {udpReceiveCount}")
+            .AppendLine($"- **IPv6 events:** {ipv6Count}")
             .AppendLine()
+            .AppendLine("## Protocol coverage")
+            .AppendLine();
+
+        foreach ((string protocol, int count) in protocolCounts)
+            text.AppendLine($"- **{Escape(protocol)}:** {count}");
+
+        text.AppendLine()
             .AppendLine("> PortSentinel does not capture packet payload, HTTP body, cookies, tokens, or decrypted TLS content.")
+            .AppendLine("> UDP source ports may be unavailable in kernel callbacks and are represented as port 0.")
             .AppendLine()
             .AppendLine("| Time | Kind | Process | PID | Protocol | Local | Remote | Note |")
             .AppendLine("|---|---|---|---:|---|---|---|---|");
@@ -122,7 +143,7 @@ internal sealed class EtwTelemetryService
         foreach (EtwNetworkEvent item in capture.Events)
         {
             text.AppendLine(
-                $"| {item.Timestamp:HH:mm:ss.fff} | {Escape(item.Kind)} | {Escape(item.ProcessName)} | {item.ProcessId} | {item.Protocol} | {Escape(item.LocalEndpoint)} | {Escape(item.RemoteEndpoint)} | {Escape(item.Note)} |");
+                $"| {item.Timestamp:HH:mm:ss.fff} | {Escape(item.Kind)} | {Escape(item.ProcessName)} | {item.ProcessId} | {Escape(item.Protocol)} | {Escape(item.LocalEndpoint)} | {Escape(item.RemoteEndpoint)} | {Escape(item.Note)} |");
         }
 
         await File.WriteAllTextAsync(path, text.ToString(), cancellationToken);
@@ -144,8 +165,9 @@ internal sealed class EtwTelemetryService
             StopOnDispose = true
         };
 
-        void Add(
+        void AddTcp(
             string kind,
+            string protocol,
             int processId,
             IPAddress sourceAddress,
             int sourcePort,
@@ -155,8 +177,8 @@ internal sealed class EtwTelemetryService
         {
             string source = sourceAddress.ToString();
             string destination = destinationAddress.ToString();
-            int sourcePortValue = FormatPort(sourcePort);
-            int destinationPortValue = FormatPort(destinationPort);
+            int sourcePortValue = NormalizePort(sourcePort);
+            int destinationPortValue = NormalizePort(destinationPort);
 
             string note = kind switch
             {
@@ -171,12 +193,41 @@ internal sealed class EtwTelemetryService
                 kind,
                 processId,
                 ResolveProcessName(processId),
-                "TCP4",
+                protocol,
                 inbound ? destination : source,
                 inbound ? destinationPortValue : sourcePortValue,
                 inbound ? source : destination,
                 inbound ? sourcePortValue : destinationPortValue,
                 note));
+        }
+
+        void AddUdp(
+            string kind,
+            string protocol,
+            int processId,
+            IPAddress sourceAddress,
+            IPAddress destinationAddress,
+            int destinationPort,
+            int datagramSize,
+            bool inbound)
+        {
+            string source = sourceAddress.ToString();
+            string destination = destinationAddress.ToString();
+            int port = NormalizePort(destinationPort);
+            int size = Math.Max(0, datagramSize);
+
+            events.Enqueue(new EtwNetworkEvent(
+                Interlocked.Increment(ref sequence),
+                DateTimeOffset.Now,
+                kind,
+                processId,
+                ResolveProcessName(processId),
+                protocol,
+                inbound ? destination : source,
+                inbound ? port : 0,
+                inbound ? source : destination,
+                inbound ? 0 : port,
+                $"Kernel UDP metadata; datagramSize={size}. Source port может быть недоступен и сохраняется как 0; payload не собирается."));
         }
 
         void AddFailure(int processId, int protocol, int failureCode)
@@ -187,7 +238,7 @@ internal sealed class EtwTelemetryService
                 "FAIL",
                 processId,
                 ResolveProcessName(processId),
-                protocol == 6 ? "TCP" : $"IP-PROTO-{protocol}",
+                protocol == 6 ? "TCP4" : $"IP-PROTO-{protocol}",
                 string.Empty,
                 0,
                 string.Empty,
@@ -196,17 +247,37 @@ internal sealed class EtwTelemetryService
         }
 
         session.Source.Kernel.TcpIpConnect += data =>
-            Add("CONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+            AddTcp("CONNECT", "TCP4", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
         session.Source.Kernel.TcpIpAccept += data =>
-            Add("ACCEPT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport, inbound: true);
+            AddTcp("ACCEPT", "TCP4", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport, inbound: true);
         session.Source.Kernel.TcpIpDisconnect += data =>
-            Add("DISCONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+            AddTcp("DISCONNECT", "TCP4", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
         session.Source.Kernel.TcpIpRetransmit += data =>
-            Add("RETRANSMIT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+            AddTcp("RETRANSMIT", "TCP4", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
         session.Source.Kernel.TcpIpReconnect += data =>
-            Add("RECONNECT", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+            AddTcp("RECONNECT", "TCP4", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
         session.Source.Kernel.TcpIpFail += data =>
             AddFailure(data.ProcessID, data.Proto, data.FailureCode);
+
+        session.Source.Kernel.TcpIpConnectIPV6 += data =>
+            AddTcp("CONNECT", "TCP6", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+        session.Source.Kernel.TcpIpAcceptIPV6 += data =>
+            AddTcp("ACCEPT", "TCP6", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport, inbound: true);
+        session.Source.Kernel.TcpIpDisconnectIPV6 += data =>
+            AddTcp("DISCONNECT", "TCP6", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+        session.Source.Kernel.TcpIpRetransmitIPV6 += data =>
+            AddTcp("RETRANSMIT", "TCP6", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+        session.Source.Kernel.TcpIpReconnectIPV6 += data =>
+            AddTcp("RECONNECT", "TCP6", data.ProcessID, data.saddr, data.sport, data.daddr, data.dport);
+
+        session.Source.Kernel.UdpIpSend += data =>
+            AddUdp("UDP_SEND", "UDP4", data.ProcessID, data.saddr, data.daddr, data.dport, data.dsize, inbound: false);
+        session.Source.Kernel.UdpIpRecv += data =>
+            AddUdp("UDP_RECV", "UDP4", data.ProcessID, data.saddr, data.daddr, data.dport, data.dsize, inbound: true);
+        session.Source.Kernel.UdpIpSendIPV6 += data =>
+            AddUdp("UDP_SEND", "UDP6", data.ProcessID, data.saddr, data.daddr, data.dport, data.size, inbound: false);
+        session.Source.Kernel.UdpIpRecvIPV6 += data =>
+            AddUdp("UDP_RECV", "UDP6", data.ProcessID, data.saddr, data.daddr, data.dport, data.size, inbound: true);
 
         session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
         Task processor = Task.Run(() => session.Source.Process(), CancellationToken.None);
@@ -230,7 +301,7 @@ internal sealed class EtwTelemetryService
             started,
             DateTimeOffset.Now,
             EtwBackendMode.KernelEtw,
-            $"Kernel ETW capture завершена за {duration.TotalSeconds:0} сек. Fail/reconnect metadata включена.",
+            $"Kernel ETW capture завершена за {duration.TotalSeconds:0} сек. TCP4/TCP6 и UDP4/UDP6 metadata включена.",
             result,
             capability.IsElevated,
             null);
@@ -306,9 +377,7 @@ internal sealed class EtwTelemetryService
     private static string ResolveProcessName(int processId)
     {
         if (processId <= 0)
-        {
             return "System";
-        }
 
         try
         {
@@ -321,11 +390,13 @@ internal sealed class EtwTelemetryService
         }
     }
 
-    private static int FormatPort(int value)
-    {
-        ushort raw = unchecked((ushort)value);
-        return unchecked((ushort)IPAddress.NetworkToHostOrder(unchecked((short)raw)));
-    }
+    private static int NormalizePort(int value) =>
+        value is >= 0 and <= 65535 ? value : 0;
+
+    private static bool IsIpv6(EtwNetworkEvent item) =>
+        item.Protocol.EndsWith('6') ||
+        item.LocalAddress.Contains(':', StringComparison.Ordinal) ||
+        item.RemoteAddress.Contains(':', StringComparison.Ordinal);
 
     private static string Escape(string value) =>
         value.Replace("|", "\\|", StringComparison.Ordinal)
