@@ -12,76 +12,56 @@
 ## ✅ `0.3.0` — Sessions & Reports
 
 - SQLite session storage и WAL;
-- Live Session Recorder;
-- Session History;
-- JSON/Markdown exports;
-- Baseline Center;
-- portable data directory.
+- Live Session Recorder, history, exports и baseline.
 
-## ✅ `0.4.0` — Baseline & Explainable Rules
+## ✅ `0.4.0` — Explainable Rules
 
-- стабильный baseline fingerprint без зависимости от PID;
-- explainable rules;
-- severity, confidence, evidence и limitations;
-- Authenticode metadata и SHA-256 enrichment.
+- стабильный fingerprint без PID;
+- deterministic rules, evidence, confidence и limitations;
+- Authenticode и SHA-256 enrichment.
 
 ## ✅ `0.5.0` — Extended Telemetry
 
-- Application Watch и reconnect-loop detection;
-- reverse DNS correlation;
-- Network Process Tree;
-- session comparison и exports;
-- полный предыдущий Control Center.
+- Application Watch, DNS correlation, process tree и session comparison.
 
 ## ✅ `0.5.1` — ETW Telemetry
 
-- read-only kernel ETW backend через TraceEvent;
-- TCP IPv4 connect/accept/disconnect/retransmit events;
-- capability probe и elevated-access status;
-- ограниченное capture window;
-- JSON/Markdown ETW reports;
-- автоматический snapshot fallback;
-- явная privacy boundary без packet payload.
+- read-only kernel ETW TCP IPv4 lifecycle events;
+- capability probe, bounded capture, reports и snapshot fallback.
 
 ## ✅ `0.5.2` — Telemetry Archive
 
-- persistence ETW и fallback captures в SQLite;
-- транзакционное сохранение capture headers и events;
-- Telemetry History;
-- просмотр и export сохранённых событий;
-- lifecycle fingerprint без PID;
-- comparison двух последних captures;
-- JSON/Markdown telemetry diff;
-- backward-compatible schema extension.
+- SQLite persistence, history, event viewer и lifecycle comparison.
 
 ## ✅ `0.5.3` — Archive Operations
 
-- capture profiles на 5/15/30/60 секунд;
-- параметризованный поиск по process, IP и note;
-- preset-фильтры retransmit/disconnect/fallback/listener;
-- выбор произвольной пары captures для comparison;
-- Archive Status и размер SQLite-файла;
-- retention policies 25/50/100/250;
-- обязательный dry-run preview и подтверждение `Y`;
-- транзакционная каскадная очистка старых telemetry events.
+- capture profiles, parameterized search, selective comparison и retention preview.
+
+## ✅ `0.5.4` — Connection Health
+
+- kernel `TcpIpFail` и `TcpIpReconnect` events;
+- сохранение numeric failure evidence без speculative decoding;
+- live и archived health analysis;
+- explainable fail/retransmit/reconnect/repeated-connect findings;
+- capture-boundary и snapshot-fallback limitations;
+- health score 0–100;
+- JSON/Markdown health reports.
 
 ## `0.5.x` — Telemetry Stabilization
 
 - IPv6 и UDP provider coverage;
-- connection failures и timeout classification;
-- installer watch preset;
 - pagination очень больших timeline;
-- unit/integration tests для ETW mapping, archive, trackers, DNS и process tree;
-- обработка simultaneous kernel logger conflicts.
+- installer watch preset;
+- unit/integration tests для ETW mapping, health, archive, trackers, DNS и process tree;
+- обработка simultaneous kernel logger conflicts;
+- документированная mapping table для известных failure codes только при наличии authoritative источника.
 
 ## `0.6.0` — Managed Firewall
 
 - read-only Firewall correlation;
 - изменение только PortSentinel-managed rules;
-- plan и dry-run;
-- явное подтверждение;
-- transaction journal;
-- rollback;
+- plan, dry-run и явное подтверждение;
+- transaction journal и rollback;
 - защита от удаления сторонних правил.
 
 ## `1.0.0` — стабильный продукт
@@ -90,7 +70,7 @@
 - подписанные релизы;
 - проверенный updater и rollback;
 - backward compatibility;
-- unit/integration tests для native networking, storage и rules;
+- unit/integration tests;
 - документированная privacy/security model.
 
 ## Правило выпуска следующей версии
