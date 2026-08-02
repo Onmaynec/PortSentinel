@@ -7,13 +7,13 @@ namespace PortSentinel;
 
 internal static class Program
 {
-    public const string Version = "0.5.6";
+    public const string Version = "0.5.7";
 
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        Console.Title = $"PortSentinel {Version} — Timeline Explorer";
+        Console.Title = $"PortSentinel {Version} — Installer Watch";
 
         if (!OperatingSystem.IsWindows())
         {
@@ -107,10 +107,16 @@ internal static class Program
                 archive,
                 new NetworkCoverageService(store.ReportsDirectory),
                 v54Panel);
-            var app = new PortSentinelV56App(
+            var v56Panel = new PortSentinelV56App(
                 terminal,
                 new TimelineExplorerService(store.DatabasePath, store.ReportsDirectory),
                 v55Panel);
+            var app = new PortSentinelV57App(
+                terminal,
+                etw,
+                archive,
+                new InstallerWatchService(store.ReportsDirectory),
+                v56Panel);
 
             await app.RunAsync(CancellationToken.None);
             return 0;
@@ -135,7 +141,7 @@ internal static class Program
     {
         Console.WriteLine("PortSentinel — интерактивный монитор сетевой активности Windows");
         Console.WriteLine();
-        Console.WriteLine("v0.5.6: server-side timeline pagination, filters, sequence jump и page exports.");
+        Console.WriteLine("v0.5.7: guided installer baseline/watch captures и explainable before/after reports.");
         Console.WriteLine("Запуск без аргументов открывает полноэкранную панель.");
         Console.WriteLine();
         Console.WriteLine("Параметры:");
