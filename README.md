@@ -6,82 +6,106 @@
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](docs/COMPATIBILITY.md)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](src/PortSentinel/PortSentinel.csproj)
-[![Version](https://img.shields.io/badge/version-0.5.6-00d4ff)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.5.7-00d4ff)](VERSION)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Полноэкранная Windows TUI для масштабируемого telemetry archive, TCP/UDP ETW metadata и explainable diagnostics.**
+**Полноэкранная Windows TUI для ETW telemetry, SQLite archive, Installer Watch и explainable network diagnostics.**
 
 [English](docs/README_EN.md) · [Интерфейс](docs/INTERFACE.md) · [Архитектура](docs/ARCHITECTURE.md) · [Обновления](docs/UPDATES.md) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
 > [!IMPORTANT]
-> PortSentinel — самостоятельный `portsentinel.exe`, а не оболочка над `netstat` или набор PowerShell-команд.
+> PortSentinel — самостоятельный `portsentinel.exe`. Он не запускает установщики, не перехватывает packet payload и не является malware scanner.
 
-## Что нового в 0.5.6 📜
+## Что нового в 0.5.7 📦
 
-- новая панель **Timeline Explorer**;
-- capture index и event timeline читаются отдельными SQLite-pages;
-- крупные captures больше не загружаются целиком для обычного просмотра;
-- PageUp/PageDown переключают страницы, Home/End переходят к границам;
-- `K` циклически меняет event-kind filter;
-- `P` меняет protocol filter между `TCP4`, `TCP6`, `UDP4`, `UDP6`;
-- `F` ищет process, IP address, port или diagnostic note;
-- `G` переходит к точному sequence number и вычисляет нужную страницу;
-- `J`/`M` экспортируют текущую отфильтрованную SQL-page;
-- Network Coverage v0.5.5 полностью сохранён во вложенной панели.
+- новая панель **Installer Watch**;
+- Standard Watch: baseline 8 секунд + watch 30 секунд;
+- Deep Watch: baseline 10 секунд + watch 60 секунд;
+- ручная точка запуска установщика между captures;
+- baseline и watch автоматически сохраняются в SQLite;
+- optional process hint приоритизирует похожие process names;
+- PID-независимый before/after diff новых network fingerprints;
+- process candidates, endpoints, TCP/UDP counts и failure signals;
+- анализ последней пары архивных captures;
+- JSON и Markdown Installer Watch reports;
+- Timeline Explorer v0.5.6 полностью сохранён во вложенной панели.
 
 ## Основные возможности ✨
 
 | Модуль | Что делает |
 |---|---|
-| 📜 Timeline Explorer | Постранично открывает captures и events без полной materialization |
-| 🌐 Network Coverage | Показывает наблюдённые TCP4/TCP6/UDP4/UDP6 families |
+| 📦 Installer Watch | Сравнивает baseline и watch во время ручной установки программы |
+| 📜 Timeline Explorer | Постранично открывает крупные captures через SQLite |
+| 🌐 Network Coverage | Показывает TCP4/TCP6/UDP4/UDP6 protocol families |
 | ❤️‍🩹 Connection Health | Анализирует fail/reconnect/retransmit patterns |
-| ⚡ ETW Network Capture | Получает read-only kernel lifecycle metadata |
+| ⚡ ETW Network Capture | Получает read-only kernel network metadata |
 | 🛟 Snapshot Fallback | Продолжает работу через Windows IP Helper API без elevation |
-| 🗄️ Telemetry Archive | Сохраняет captures и события в SQLite |
+| 🗄️ Telemetry Archive | Хранит captures и events в локальной SQLite-базе |
 | 🔎 Archive Search | Ищет события по process, IP, note, kind и backend |
-| ⇄ Selective Comparison | Сравнивает выбранную пару capture-сессий без PID |
-| 🧹 Retention Center | Показывает dry-run и очищает только старый archive |
-| 👁️ Application Watch | Строит timeline процесса и ищет reconnect loops |
+| ⇄ Selective Comparison | Сравнивает выбранные capture-сессии без PID |
+| 🧹 Retention Center | Выполняет preview и безопасную очистку старого archive |
 | 🎯 Baseline & Rules | Показывает deviations, evidence и limitations |
-| 🔄 Update Center | Проверяет GitHub Releases, ZIP и SHA-256 |
+| 🔄 Update Center | Проверяет GitHub Releases и SHA-256 |
+
+## Installer Watch
+
+### Standard Watch
+
+1. Закройте лишние приложения.
+2. Укажите optional process hint, например `setup`, `installer` или имя приложения.
+3. Запишите 8-секундный baseline.
+4. Запустите установщик вручную.
+5. Вернитесь в PortSentinel и начните 30-секундный watch capture.
+6. Просмотрите process candidates, added metadata и limitations.
+
+### Deep Watch
+
+Deep Watch использует baseline 10 секунд и watch 60 секунд. Он полезен для установщиков, которые загружают несколько компонентов или запускают package manager и service host.
+
+PortSentinel не запускает installer EXE и не изменяет систему.
+
+## Что входит в diff
+
+Installer Watch сравнивает нормализованные network fingerprints:
+
+- event kind;
+- protocol family;
+- process name;
+- remote address и port;
+- local binding для listener/accept events.
+
+PID исключён. Для исходящих событий также исключается ephemeral local port, чтобы новый временный порт не создавал ложный уникальный fingerprint.
+
+## Модель доверия
+
+Process hint используется только для сортировки. Он не доказывает, что установщик владеет endpoint.
+
+Новые события могут принадлежать:
+
+- background applications;
+- Windows services;
+- scheduled tasks;
+- child processes установщика;
+- service hosts;
+- package managers;
+- браузеру, открытому установщиком.
+
+Baseline и watch являются отдельными bounded captures. Промежуток между ними не записывается. При SnapshotFallback короткоживущие события и ordering могут отсутствовать.
 
 ## Timeline Explorer
 
-### Capture Browser
+Timeline Explorer остаётся доступным во вложенной панели и поддерживает:
 
-Capture index получает только одну SQL-page за запрос. Размер page автоматически подстраивается под высоту терминала.
+- server-side `COUNT(*)`, `LIMIT` и `OFFSET`;
+- PageUp/PageDown и Home/End;
+- kind/protocol filters;
+- parameterized text search;
+- переход к sequence number;
+- JSON/Markdown export текущей SQL-page.
 
-- `↑` / `↓` — выбрать capture;
-- `PageUp` / `PageDown` — предыдущая или следующая page;
-- `Home` / `End` — первая или последняя page;
-- `Enter` — открыть timeline выбранной capture.
-
-### Event timeline
-
-Timeline использует отдельный `COUNT(*)` и запрос с `LIMIT/OFFSET`. Фильтры применяются серверной частью SQLite до чтения событий.
-
-- kind presets: connect, accept, disconnect, retransmit, reconnect, fail, UDP send/receive, listener и snapshot;
-- protocol presets: `TCP4`, `TCP6`, `UDP4`, `UDP6`;
-- text search: process name, local/remote IP, local/remote port и diagnostic note;
-- sequence jump: поиск точного event и вычисление его page/index;
-- page export: только текущий отображаемый диапазон.
-
-## SQLite indexes и совместимость
-
-Версия 0.5.6 не меняет таблицы и существующие records. Для paged queries добавляются только индексы:
-
-```text
-telemetry_events(capture_id, sequence)
-telemetry_events(capture_id, kind, sequence)
-telemetry_events(capture_id, protocol, sequence)
-```
-
-Search text передаётся SQLite через parameters. Символы `%`, `_` и `\` экранируются как literal characters.
-
-## TCP и UDP coverage
+## ETW coverage
 
 Kernel backend обрабатывает:
 
@@ -90,11 +114,7 @@ Kernel backend обрабатывает:
 - UDP4: send и receive;
 - UDP6: send и receive.
 
-Некоторые UDP callbacks не предоставляют source port. В таком случае недоступный port сохраняется как `0` и отмечается в limitations.
-
-## ETW и fallback
-
-Kernel ETW control обычно требует запуска от администратора. PortSentinel не изменяет системные группы или logger limits. Если права отсутствуют, logger занят или backend возвращает ошибку, используется Windows IP Helper API snapshot.
+Kernel ETW control обычно требует запуска от администратора. При недостаточных правах или ошибке logger используется snapshot fallback.
 
 ## Privacy boundary
 
@@ -102,7 +122,7 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 
 ## Быстрый старт ⚡
 
-1. Скачайте `PortSentinel-0.5.6-win-x64.zip` из Releases.
+1. Скачайте `PortSentinel-0.5.7-win-x64.zip` из Releases.
 2. Сверьте архив с `.sha256`.
 3. Полностью распакуйте ZIP в отдельную папку.
 4. Запустите `portsentinel.exe`.
@@ -111,15 +131,12 @@ PortSentinel не собирает и не сохраняет packet payload, HT
 
 | Клавиша | Действие |
 |---|---|
-| `↑` / `↓` | Выбор capture или события |
-| `PageUp` / `PageDown` | Переключение SQL-pages |
-| `Home` / `End` | Первая или последняя page |
-| `Enter` | Открыть timeline или event details |
-| `K` / `P` | Kind или protocol filter |
-| `F` | Text filter |
-| `C` | Очистить timeline filters |
-| `G` | Перейти к sequence number |
-| `J` / `M` | Экспорт текущей page в JSON / Markdown |
+| `↑` / `↓` | Выбор меню, процесса или события |
+| `Enter` | Начать этап watch или открыть details |
+| `E` | Показать added events |
+| `L` | Показать limitations |
+| `J` / `M` | Экспорт JSON / Markdown |
+| `PageUp` / `PageDown` | Переключить страницы Timeline Explorer |
 | `Esc` / `Q` | Назад или выход |
 
 ## Локальное хранилище
@@ -149,10 +166,10 @@ dotnet run --project src/PortSentinel/PortSentinel.csproj
 
 ## Roadmap 🗺️
 
-- `0.5.x` — installer watch preset, automated tests и kernel logger conflict handling;
+- `0.5.x` — automated tests и kernel logger conflict handling;
 - `0.6.0` — read-only Firewall correlation и безопасные managed rules;
 - `1.0.0` — стабильные schemas, подписанные релизы и backward compatibility.
 
 ---
 
-**PortSentinel 0.5.6** · Windows 10/11 x64 · .NET 8 · MIT
+**PortSentinel 0.5.7** · Windows 10/11 x64 · .NET 8 · MIT
