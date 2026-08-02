@@ -2,6 +2,31 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.5.8] — 2026-08-02
+
+### Добавлено
+
+- новая верхнеуровневая панель ETW Session Guard;
+- preflight inventory активных ETW session names;
+- ownership boundary между `PortSentinel-*` и foreign sessions;
+- 15-секундный Guarded Capture с автоматическим сохранением в SQLite;
+- diagnostics попыток запуска, backend, fallback, native code и session counts;
+- best-effort classification access denied, name collision, resource limit и unavailable session;
+- один bounded retry только при вероятном name collision;
+- JSON schema v1 и Markdown exports inventory/guard diagnostics;
+- dry-run cleanup собственных orphan sessions;
+- обязательное подтверждение `Y` перед cleanup;
+- полный Installer Watch v0.5.7 сохранён во вложенной панели.
+
+### Безопасность и ограничения
+
+- foreign ETW sessions никогда не останавливаются, не перезапускаются и не изменяются;
+- cleanup применяет allowlist по префиксу `PortSentinel-` до attach/stop;
+- другие экземпляры PortSentinel следует закрыть перед cleanup;
+- при ошибке kernel ETW используется snapshot fallback через Windows IP Helper API;
+- текстовая классификация fallback является диагностической, а не окончательным Windows verdict;
+- packet payload, HTTP body, cookies, credentials, tokens и decrypted TLS content не собираются.
+
 ## [0.5.7] — 2026-08-02
 
 ### Добавлено
