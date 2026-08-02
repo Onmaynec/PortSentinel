@@ -2,6 +2,33 @@
 
 Все значимые изменения PortSentinel фиксируются в этом файле.
 
+## [0.4.0] — 2026-08-01
+
+### Добавлено
+
+- новый экран Explainable Rules;
+- `NewListenerRule` для listeners, отсутствующих в baseline;
+- `WildcardListenerRule` для wildcard bindings;
+- `UnsignedNetworkProcessRule` для executable без Authenticode;
+- `TempDirectoryNetworkProcessRule` для Temp/Downloads;
+- severity, confidence, evidence и limitations для каждого finding;
+- SHA-256 enrichment executable;
+- чтение Authenticode certificate и publisher;
+- подробная карточка finding в TUI.
+
+### Изменено
+
+- baseline сравнивается по стабильному fingerprint, не зависящему от PID;
+- главное меню обновлено для v0.4.0;
+- README, English README, architecture, roadmap и release notes синхронизированы.
+
+### Безопасность и ограничения
+
+- наличие подписи фиксируется без malware verdict;
+- отсутствие Authenticode не считается доказательством вредоносности;
+- wildcard listener может быть штатным;
+- недоступные executable явно учитываются как ограничение enrichment.
+
 ## [0.3.0] — 2026-08-01
 
 ### Добавлено

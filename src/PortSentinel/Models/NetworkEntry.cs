@@ -22,6 +22,21 @@ internal sealed record NetworkEntry(
     public string Identity =>
         $"{Protocol}|{LocalAddress}|{LocalPort}|{RemoteAddress}|{RemotePort}|{ProcessId}|{State}";
 
+    public string BaselineIdentity
+    {
+        get
+        {
+            string processIdentity = NormalizeIdentityPart(ExecutablePath ?? ProcessName);
+            string protocol = NormalizeIdentityPart(Protocol);
+            string localAddress = NormalizeIdentityPart(LocalAddress);
+            string remoteAddress = NormalizeIdentityPart(RemoteAddress);
+
+            return IsListener
+                ? $"{protocol}|listener|{localAddress}|{LocalPort}|{processIdentity}"
+                : $"{protocol}|connection|{localAddress}|{LocalPort}|{remoteAddress}|{RemotePort}|{processIdentity}|{NormalizeIdentityPart(State)}";
+        }
+    }
+
     private static string FormatEndpoint(string address, int port)
     {
         string formattedAddress = address.Contains(':', StringComparison.Ordinal)
@@ -30,4 +45,7 @@ internal sealed record NetworkEntry(
 
         return $"{formattedAddress}:{port}";
     }
+
+    private static string NormalizeIdentityPart(string? value) =>
+        (value ?? string.Empty).Trim().Replace('/', '\\').ToUpperInvariant();
 }

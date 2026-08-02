@@ -1,23 +1,35 @@
 # PortSentinel
 
-**A full-screen Windows console utility for monitoring TCP and UDP activity.**
+**A full-screen Windows TUI for network observation, session history, baselines, and explainable rules.**
 
-PortSentinel 0.2.0 is a standalone `portsentinel.exe`, not a CMD extension or a wrapper around localized `netstat` output. Running the executable without arguments opens an interactive terminal control center with arrow-key navigation, animations, a live network table, listener and connection screens, process details, quick heuristics, and a GitHub Releases updater.
+PortSentinel 0.4.0 is a standalone self-contained `portsentinel.exe`. It reads TCP/UDP IPv4/IPv6 tables through the Windows IP Helper API, correlates processes, stores local sessions in SQLite, compares the current state with a baseline, and presents explainable findings.
 
-## Highlights
+## 0.4.0 highlights
 
-- full-screen keyboard-driven TUI;
-- ASCII logo, colored states, intro and action animations;
-- direct Windows IP Helper API integration;
-- IPv4 and IPv6 TCP/UDP tables;
-- PID, process name and executable path correlation;
-- live monitor, listeners, connections and quick scan;
-- self-contained single-file Windows x64 release;
-- update checks, ZIP download, SHA-256 validation and restart;
-- automated Releases generated from the `VERSION` file.
+- stable baseline fingerprints that do not depend on PID;
+- `NewListenerRule`;
+- `WildcardListenerRule`;
+- `UnsignedNetworkProcessRule`;
+- `TempDirectoryNetworkProcessRule`;
+- severity, confidence, evidence, and limitations;
+- SHA-256 enrichment for executable files;
+- Authenticode certificate and publisher metadata;
+- detailed rule finding cards in the TUI.
+
+Findings describe observable facts. They are not malware verdicts.
+
+## Existing capabilities
+
+- live TCP/UDP monitor;
+- listeners and active connections;
+- process inspector and quick scan;
+- SQLite session history;
+- JSON and Markdown exports;
+- GitHub Releases updater with SHA-256 verification;
+- self-contained Windows x64 release.
 
 ## Start
 
-Download `PortSentinel-0.2.0-win-x64.zip` from GitHub Releases, extract it to a writable folder, and run `portsentinel.exe`.
+Download `PortSentinel-0.4.0-win-x64.zip` from GitHub Releases, verify the `.sha256` file, extract the archive to a writable folder, and run `portsentinel.exe`.
 
 The Russian [`README.md`](../README.md) is the primary project documentation.

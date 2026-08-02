@@ -1,95 +1,77 @@
 # 🏗️ Архитектура PortSentinel
 
-Документ разделяет **реализованное ядро v0.2.0** и будущие подсистемы. PortSentinel уже является самостоятельным `portsentinel.exe` с собственной полноэкранной TUI-панелью.
-
-## Архитектура v0.2.0
+PortSentinel 0.4.0 состоит из четырёх основных слоёв: Windows telemetry, session storage, baseline/rules и полноэкранная TUI.
 
 ```mermaid
 flowchart LR
-    UI[Full-screen TUI] --> APP[PortSentinelApp]
-    APP --> SNAP[NetworkSnapshotService]
+    UI[PortSentinelV4App / TUI] --> SNAP[NetworkSnapshotService]
     SNAP --> API[Windows IP Helper API]
-    API --> TCP[GetExtendedTcpTable]
-    API --> UDP[GetExtendedUdpTable]
-    SNAP --> META[ProcessMetadataService]
-    META --> PROC[Windows Process API]
-    APP --> SCAN[QuickScanService]
-    APP --> UPDATE[GitHubUpdateService]
-    UPDATE --> RELEASES[GitHub Releases]
+    UI --> STORE[SessionStore / SQLite]
+    UI --> BASE[BaselineFingerprintService]
+    UI --> RULES[RuleEngine]
+    RULES --> ENRICH[ProcessSecurityService]
+    ENRICH --> HASH[SHA-256]
+    ENRICH --> SIGN[Authenticode certificate]
+    UI --> LEGACY[PortSentinelApp / Network Tools]
+    LEGACY --> UPDATE[GitHubUpdateService]
 ```
 
 ## Ответственность компонентов
 
 | Компонент | Ответственность |
 |---|---|
-| `Program.cs` | Windows check, параметры запуска, UTF-8 и создание приложения |
-| `PortSentinelApp` | Навигация, экраны, live loop и управление клавиатурой |
-| `Terminal` | Полноэкранный рендеринг, цвета, рамки, spinner и progress-анимации |
-| `AsciiLogo` | Полный и компактный символьный логотип |
-| `NetworkSnapshotService` | TCP/UDP IPv4/IPv6 таблицы через `iphlpapi.dll` |
-| `ProcessMetadataService` | PID, имя процесса, executable path, компания и start time |
-| `QuickScanService` | Explainable эвристики без malware verdict |
-| `GitHubUpdateService` | Release API, ZIP, SHA-256, безопасная распаковка и перезапуск |
+| `Program.cs` | Windows check, параметры запуска и сборка dependency graph |
+| `PortSentinelV4App` | Главное меню, sessions, baseline и Explainable Rules |
+| `PortSentinelApp` | Network Tools предыдущего поколения |
+| `NetworkSnapshotService` | TCP/UDP IPv4/IPv6 через `iphlpapi.dll` |
+| `SessionStore` | SQLite sessions, baselines и exports |
+| `BaselineFingerprintService` | Стабильное сравнение baseline без PID |
+| `RuleEngine` | Детерминированные explainable rules |
+| `ProcessSecurityService` | SHA-256 и Authenticode metadata |
+| `Terminal` | Рендеринг, цвета, рамки, spinner и progress |
+| `GitHubUpdateService` | Release API, ZIP, SHA-256 и перезапуск |
 
-## Поток сетевых данных
+## Стабильный baseline fingerprint
 
-1. `GetExtendedTcpTable` и `GetExtendedUdpTable` возвращают структурированные Windows-таблицы.
-2. Native rows нормализуются в `NetworkEntry`.
-3. PID обогащается сведениями о процессе.
-4. UI разделяет listeners и active connections.
-5. Live Monitor сравнивает последовательные снимки и выделяет новые записи.
-6. Quick Scan оценивает только наблюдаемые признаки.
+Обычный live identity включает PID и подходит для сравнения последовательных снимков. Baseline fingerprint использует protocol, endpoints, process path/name и state, но не PID. Поэтому штатный перезапуск процесса не создаёт ложный новый listener только из-за нового PID.
 
-PortSentinel не парсит локализованный вывод `netstat` и не запускает PowerShell для основного мониторинга.
+Старые baseline из v0.3.0 остаются совместимыми: fingerprint вычисляется из сохранённых полей `baseline_entries`, миграция схемы SQLite не требуется.
 
-## Native API
+## Rule engine
 
-v0.2.0 использует:
+v0.4.0 содержит четыре правила:
 
-- `GetExtendedTcpTable` для TCP IPv4/IPv6;
-- `GetExtendedUdpTable` для UDP IPv4/IPv6;
-- `System.Diagnostics.Process` для process metadata;
-- `kernel32.dll` для virtual terminal mode.
+1. новый listener относительно baseline;
+2. wildcard listener;
+3. executable без Authenticode;
+4. executable из Temp или Downloads.
 
-Native buffer всегда освобождается через `Marshal.FreeHGlobal`. Ошибка чтения превращается в понятный экран диагностики, а не в повреждённую таблицу.
+Каждый `RuleFinding` хранит:
 
-## TUI
+- rule id;
+- severity;
+- confidence;
+- evidence;
+- limitation;
+- связанную `NetworkEntry`;
+- optional SHA-256, signature status и publisher.
 
-Интерфейс не зависит от внешней UI-библиотеки. Это позволяет выпускать один self-contained EXE и полностью контролировать:
+Rule engine не формирует malware verdict.
 
-- перерисовку экрана;
-- навигацию стрелками;
-- цветовые состояния;
-- адаптацию таблиц к ширине терминала;
-- заставку, spinner и progress bar;
-- автоматическое отключение анимаций при redirect.
+## Enrichment
 
-Подробнее: [`INTERFACE.md`](INTERFACE.md).
+`ProcessSecurityService` работает локально:
 
-## Обновления
+1. группирует уникальные executable paths;
+2. рассчитывает SHA-256 с безопасным shared-read;
+3. читает Authenticode certificate;
+4. сохраняет publisher или явное limitation;
+5. не отправляет hashes, paths или telemetry во внешние сервисы.
 
-Updater доверяет только Release репозитория `Onmaynec/PortSentinel`. Перед установкой он:
+Наличие сертификата не означает полную проверку цепочки доверия. Это ограничение явно показывается в UI.
 
-1. получает `releases/latest`;
-2. ищет ожидаемый `win-x64.zip`;
-3. скачивает `.sha256`;
-4. сравнивает SHA-256;
-5. проверяет пути ZIP при распаковке;
-6. просит явное подтверждение;
-7. заменяет файлы после завершения текущего процесса.
+## Хранилище и приватность
 
-Подробнее: [`UPDATES.md`](UPDATES.md).
+SQLite расположен в `%LocalAppData%\PortSentinel\portsentinel.db` и использует WAL. Отчёты сохраняются в `%LocalAppData%\PortSentinel\reports`.
 
-## Следующие архитектурные слои
-
-В следующих версиях будут добавлены отдельные проекты или модули для:
-
-- SQLite session storage;
-- baseline engine;
-- explainable rule engine;
-- digital signature и hashing enrichment;
-- ETW и DNS correlation;
-- HTML/JSON/Markdown reporting;
-- managed Windows Firewall actions с plan, dry-run и rollback.
-
-Эти подсистемы пока являются roadmap и не выдаются документацией за готовую функциональность.
+PortSentinel не сохраняет payload, HTTP body, cookies, токены или расшифрованное TLS-содержимое.

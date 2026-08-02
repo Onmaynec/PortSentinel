@@ -4,51 +4,40 @@
 
 ## ✅ `0.2.0` — Network Control Center
 
-Выполнено:
-
-- самостоятельный self-contained `portsentinel.exe`;
-- полноэкранная русская TUI-панель;
-- навигация стрелками, Enter и цифровыми клавишами;
-- ASCII-логотип, заставка, spinner и progress-анимации;
+- self-contained Windows executable;
+- полноэкранная TUI;
 - TCP/UDP IPv4/IPv6 через Windows IP Helper API;
-- PID, process name и executable path mapping;
-- Live Monitor, Listening Ports и Active Connections;
-- Process Inspector;
-- Quick Scan с explainable findings;
-- GitHub Releases updater с проверкой SHA-256;
-- Build и Release workflows;
-- MIT License и русская документация по умолчанию.
+- process mapping, listeners, connections, Quick Scan и updater.
 
-## `0.2.x` — стабилизация интерфейса
+## ✅ `0.3.0` — Sessions & Reports
 
-- интерактивная сортировка таблиц;
-- фильтры по процессу, PID, протоколу, порту и адресу;
-- поиск внутри Process Inspector;
-- настройка частоты обновления;
-- темы и дополнительные визуальные эффекты без перегрузки интерфейса;
-- улучшенная обработка изменения размера терминала;
-- smoke tests интерфейса и native adapters.
+- SQLite session storage и WAL;
+- Live Session Recorder;
+- Session History;
+- JSON/Markdown exports;
+- Baseline Center;
+- portable data directory.
 
-## `0.3.0` — Sessions & Reports
+## ✅ `0.4.0` — Baseline & Explainable Rules
 
-- SQLite session storage;
-- история запусков;
-- connection lifecycle между снимками;
-- экспорт JSON и Markdown;
-- автономный HTML report;
-- data-quality блок и dropped/limited metadata counters;
-- retention и portable data directory.
-
-## `0.4.0` — Baseline & Rules
-
-- создание baseline обычной активности;
-- сравнение нового снимка и сессии с baseline;
+- стабильный baseline fingerprint без зависимости от PID;
 - `NewListenerRule`;
 - `WildcardListenerRule`;
 - `UnsignedNetworkProcessRule`;
 - `TempDirectoryNetworkProcessRule`;
 - severity, confidence, evidence и limitations;
-- digital signature и SHA-256 enrichment.
+- Authenticode metadata;
+- SHA-256 enrichment;
+- отдельный Rules Center и карточка finding.
+
+## `0.4.x` — Rule Engine Stabilization
+
+- unit tests для fingerprints и правил;
+- фильтры по severity, rule и process;
+- экспорт findings в JSON/Markdown;
+- allowlist для ожидаемых executable/listeners;
+- cache enrichment по path + file metadata;
+- улучшенная проверка доверия certificate chain.
 
 ## `0.5.0` — Extended Telemetry
 
